@@ -17,7 +17,13 @@ symbol = oneOf "!$%&|*+-/:<=?>@i^_~#"
 
 escapeChars = do
     char '\\'
-    oneOf ['"', '\\', 'n', 'r', 't']
+    x <- oneOf ['"', '\\', 'n', 'r', 't']
+    return $ (case x of
+             '\\' -> '\\'
+             '"' -> '"'
+             'n'-> '\n'
+             'r'-> '\r'
+             't'-> '\t')
 
 parseString :: Parser LispVal
 parseString = do
