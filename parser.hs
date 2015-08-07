@@ -1,6 +1,7 @@
 import System.Environment
 import Control.Monad
 import Text.ParserCombinators.Parsec hiding (spaces)
+import Numeric
 
 data LispVal = Atom String
             | List [LispVal]
@@ -8,6 +9,7 @@ data LispVal = Atom String
             | Number Integer
             | String String
             | Bool Bool
+            deriving (Show)
 
 spaces :: Parser ()
 spaces = skipMany1 space
@@ -42,15 +44,23 @@ parseAtom = do first <- letter <|> symbol
                     otherwise -> Atom atom
 
 parseNumber :: Parser LispVal
-parseNumber = liftM (Number . read) $ many1 digit
+parseNumber = (liftM (Number . read) $ many1 digit ) <|> try parseHex <|> parseOct
+
+parseHex :: Parser LispVal
+parseHex = string "#x">> many (oneOf "0123456789abcdefABCDEF") >>= (\x -> return . Number . fst . head . readHex $ x)
+
+parseOct :: Parser LispVal
+parseOct = string "#o" >> many (oneOf "01234567") >>= (\x -> return . Number . fst . head . readOct $ x)
 
 parseExpr :: Parser LispVal
-parseExpr = parseAtom <|> parseString <|> parseNumber
+parseExpr = parseNumber <|> parseString <|> parseAtom
 
 readExpr :: String -> String
 readExpr input = case parse (parseExpr) "lisp" input  of
                    Left err -> "No match: " ++ (show err)
-                   Right val -> "Found value"
+                   Right val -> show val
+
+parser rule text = parse rule "(source)" text
 
 main :: IO()
 main = do args <- getArgs
