@@ -1,4 +1,7 @@
+module Parser (LispVal (..), readExpr) where
+
 import System.Environment
+import Data.Char
 import Control.Monad
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Numeric
@@ -9,7 +12,24 @@ data LispVal = Atom String
             | Number Integer
             | String String
             | Bool Bool
-            deriving (Show)
+            | Char Char
+            deriving (Eq, Show)
+
+parseExpr :: Parser LispVal
+parseExpr = (try parseNumber) <|> parseString <|> parseChar <|> parseAtom
+
+readExpr :: String -> LispVal
+readExpr input = case parse (parseExpr) "lisp" input  of
+                   Left err -> String ("No match: " ++ (show err))
+                   Right val -> val
+
+parser rule text = parse rule "(source)" text
+
+main :: IO()
+main = do args <- getArgs
+          putStrLn . show . readExpr $ args !! 0
+
+-------------------------------------------------------------------------------
 
 spaces :: Parser ()
 spaces = skipMany1 space
@@ -52,17 +72,13 @@ parseHex = string "#x">> many (oneOf "0123456789abcdefABCDEF") >>= (\x -> return
 parseOct :: Parser LispVal
 parseOct = string "#o" >> many (oneOf "01234567") >>= (\x -> return . Number . fst . head . readOct $ x)
 
-parseExpr :: Parser LispVal
-parseExpr = parseNumber <|> parseString <|> parseAtom
-
-readExpr :: String -> String
-readExpr input = case parse (parseExpr) "lisp" input  of
-                   Left err -> "No match: " ++ (show err)
-                   Right val -> show val
-
-parser rule text = parse rule "(source)" text
-
-main :: IO()
-main = do args <- getArgs
-          putStrLn . readExpr $ args !! 0
+parseChar :: Parser LispVal
+parseChar = do
+    string "#\\"
+    x <- many1 letter
+    return . Char $ case (map toLower x) of
+            "newline" -> '\n'
+            "space" -> ' '
+            " " -> ' '
+            [x] -> x
 
