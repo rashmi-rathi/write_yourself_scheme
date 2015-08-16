@@ -4,13 +4,14 @@ import Data.Ratio
 import Test.HUnit
 import Parser
 
-testCase1 = (assertEqual "" (Char ' ') (readExpr "#\\space"))
-testCase2 = assertEqual "" (String "YOLO\"OLOY") (readExpr "\"YOLO\\\"OLOY\"")
-testCase3 = assertEqual "" (String "Dil\nLid") (readExpr "\"Dil\nLid\"" )
-testCaseOct = assertEqual "" (Number 83) (readExpr "#o123")
-testCaseHex = assertEqual "" (Number 291) (readExpr "#x0123")
-testCaseDec = assertEqual "" (Float 291.99) (readExpr "#d291.99")
-testCaseComplex = assertEqual "" (Complex (1 :+ 1)) (readExpr "1+1i")
-testCaseRational = assertEqual "" (Rational (5 % 7)) (readExpr "5/7")
-
-main = runTestTT . TestList $ map TestCase [testCase1, testCase2, testCase3, testCaseOct, testCaseHex, testCaseDec, testCaseComplex, testCaseRational]
+main = runTestTT . TestList $ map TestCase [assertEqual "" (Char ' ') (readExpr "#\\space"),
+                                            assertEqual "" (String "YOLO\"OLOY") (readExpr "\"YOLO\\\"OLOY\""),
+                                            assertEqual "" (String "Dil\nLid") (readExpr "\"Dil\nLid\"" ),
+                                            assertEqual "" (Number 83) (readExpr "#o123"),
+                                            assertEqual "" (Number 291) (readExpr "#x0123"),
+                                            assertEqual "" (Float 291.99) (readExpr "#d291.99"),
+                                            assertEqual "" (Complex (1 :+ 1)) (readExpr "1+1i"),
+                                            assertEqual "" (Rational (5 % 7)) (readExpr "5/7"),
+                                            assertEqual "" (List [Number 1, Number 2, Number 3]) (readExpr "(1 2 3)"),
+                                            assertEqual "" (List [Atom "quasiquote",List [Number 1,Number 2,List [Atom "unquote",List [Atom "+",Number 3,Number 4]]]]) (readExpr "`(1 2 ,(+3 4))")
+                                            ]

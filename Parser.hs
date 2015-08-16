@@ -21,7 +21,20 @@ data LispVal = Atom String
             deriving (Eq, Show)
 
 parseExpr :: Parser LispVal
-parseExpr = try parseRational <|> try parseComplex <|>  try parseNumber  <|> try parseDec <|> parseString <|> parseChar <|> parseAtom
+parseExpr = try parseRational
+        <|> try parseComplex
+        <|> try parseNumber
+        <|> try parseDec
+        <|> parseString
+        <|> parseChar
+        <|> parseAtom
+        <|> parseQuoted
+        <|> do
+               char '('
+               x <- try parseList <|> parseDottedList
+               char ')'
+               return x
+        <|> parseQuasiQuote
 
 readExpr :: String -> LispVal
 readExpr input = case parse (parseExpr) "lisp" input  of
@@ -107,3 +120,31 @@ parseChar = do
             " " -> ' '
             [x] -> x
 
+parseList :: Parser LispVal
+parseList = liftM List $ sepBy parseExpr spaces
+
+parseDottedList :: Parser LispVal
+parseDottedList = do
+    head <- endBy parseExpr spaces
+    tail <- char '.' >> spaces >> parseExpr
+    return $ DottedList head tail
+
+parseQuoted :: Parser LispVal
+parseQuoted = do
+    char '\''
+    x <- parseExpr
+    return $ List [Atom "quote", x]
+
+parseQuasiQuote :: Parser LispVal
+parseQuasiQuote = do
+    char '`'
+    char '('
+    xs <- liftM List $ sepBy (try parseExpr <|> parseComma) spaces
+    char ')'
+    return $ List [Atom "quasiquote", xs]
+  where
+    parseComma :: Parser LispVal
+    parseComma = do
+                  char ','
+                  x <- parseExpr
+                  return $ List [Atom "unquote", x]
