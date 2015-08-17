@@ -20,7 +20,7 @@ data LispVal = Atom String
             | Vector (Array Int LispVal)
             | Bool Bool
             | Char Char
-            deriving (Eq, Show)
+            deriving (Eq)
 
 parseExpr :: Parser LispVal
 parseExpr = try parseRational
@@ -39,6 +39,22 @@ parseExpr = try parseRational
                return x
         <|> parseQuasiQuote
 
+showVal :: LispVal -> String
+showVal (String contents) = "\"" ++ contents ++ "\""
+showVal (Atom name) = name
+showVal (Number contents) = show contents
+showVal (Bool True) = "#t"
+showVal (Bool False) = "#f"
+showVal (List contents) = "(" ++ unwordsList contents ++")"
+showVal (DottedList head tail) = "(" ++ unwordsList head
+                                     ++  "."
+                                     ++ showVal tail
+                                     ++ ")"
+
+instance Show LispVal where
+    show = showVal
+
+unwordsList = unwords . map showVal
 readExpr :: String -> LispVal
 readExpr input = case parse (parseExpr) "lisp" input  of
                    Left err -> String ("No match: " ++ (show err))
