@@ -4,6 +4,7 @@ import System.Environment
 import Data.Char
 import Data.Ratio
 import Data.Complex
+import Data.Array
 import Control.Monad
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Numeric
@@ -16,6 +17,7 @@ data LispVal = Atom String
             | Rational Rational
             | Complex (Complex Float)
             | String String
+            | Vector (Array Int LispVal)
             | Bool Bool
             | Char Char
             deriving (Eq, Show)
@@ -26,9 +28,10 @@ parseExpr = try parseRational
         <|> try parseNumber
         <|> try parseDec
         <|> parseString
-        <|> parseChar
+        <|> try parseChar
         <|> parseAtom
         <|> parseQuoted
+        <|> parseVector
         <|> do
                char '('
                x <- try parseList <|> parseDottedList
@@ -148,3 +151,11 @@ parseQuasiQuote = do
                   char ','
                   x <- parseExpr
                   return $ List [Atom "unquote", x]
+
+{-Come back later to this after reading about sets!-}
+parseVector :: Parser LispVal
+parseVector = do
+  string "#("
+  elems <- sepBy parseExpr spaces
+  char ')'
+  return . Vector $ listArray (0, (length elems) - 1 ) elems
