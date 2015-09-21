@@ -86,7 +86,6 @@ instance Show LispVal where
 
 unwordsList = unwords . map showVal
 
-
 readExpr :: String -> ThrowsError LispVal
 readExpr input = case parse (parseExpr) "lisp" input  of
                    Left err -> throwError $ Parser err
@@ -208,6 +207,12 @@ eval val@(Number _) = return val
 eval val@(Bool _) = return val
 eval (List [Atom "quote", val]) = return val
 
+eval (List [Atom "if", pred, conseq, alt]) = do
+                                               result <- eval pred
+                                               x <- if result == (Bool False) then (eval alt) else (eval conseq)
+                                               return x
+
+
 eval (List [Atom func, arg]) = maybe (throwError $ NotFunction "Unrecognized primitive function args" func) ($arg) $ lookup func unaryOp
 eval (List (Atom func: args)) = mapM eval args >>= apply func
 eval badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
@@ -319,5 +324,7 @@ testList =  TestList $ map TestCase [(assertEqual "" (Number 2) (evaluator "(+ 1
                                     assertEqual "" (Bool True) (evaluator "(string? \"hello\")"),
                                     assertEqual "Symbol type-testing" (Bool True) (evaluator "(symbol? 'hello)"),
                                     assertEqual "List type-testing" (Bool True) (evaluator "(list? (1 2 3))"),
-                                    assertEqual "Symbol to string" (extractValue $readExpr "flying-fish") (evaluator "(symbol->string 'flying-fish)")]
+                                    assertEqual "Symbol to string" (extractValue $readExpr "flying-fish") (evaluator "(symbol->string 'flying-fish)"),
+                                    assertEqual "implement if statement" (String "yes") (evaluator "(if (> 2 3) \"no\" \"yes\")"),
+                                    assertEqual "implement if statement" (Number 9) (evaluator "(if (= 3 3) (+ 2 3 (- 5 1)) \"unequal\")")]
 tests = runTestTT testList
