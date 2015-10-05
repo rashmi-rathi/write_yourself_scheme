@@ -271,6 +271,8 @@ primitives = [("+", numericBinop (+)),
              ("not", unaryOperator notOp),
              ("symbol->string", unaryOperator symbolToString),
              ("string->symbol", unaryOperator stringToSymbol),
+             ("eq?", eqv),
+             ("eqv?", eqv),
              ("cons", cons),
              ("car", car),
              ("cdr", cdr)]
@@ -308,6 +310,14 @@ unpackStr notStr = throwError $ TypeMismatch "string" notStr
 unpackBool :: LispVal -> ThrowsError Bool
 unpackBool (Bool b) = return b
 unpackBool notBool = throwError $ TypeMismatch "bool" notBool
+
+-- Other functions
+eqv :: [LispVal] -> ThrowsError LispVal
+eqv [Bool arg1, Bool arg2] = return $ Bool (arg1 == arg2)
+eqv [Number arg1, Number arg2] = return $ Bool (arg1 == arg2)
+eqv [String arg1, String arg2] = return $ Bool (arg1 == arg2)
+eqv [Atom arg1, Atom arg2] = return $ Bool (arg1 == arg2)
+eqv [List arg1, List arg2] = return $ Bool ((length arg1 == length arg2) && (all (== True) $ zipWith (==) arg1 arg2)) --different from Tang's
 
 -- Implement basic Lisp handling
 car :: [LispVal] -> ThrowsError LispVal
@@ -352,7 +362,11 @@ testList =  TestList $ map TestCase
     assertEqual "implement if statement" (Number 9) (evaluator "(if (= 3 3) (+ 2 3 (- 5 1)) \"unequal\")"),
 
 -- test list primitive functionality
-    assertEqual "implement cons" (extractValue $ readExpr "(1)") (evaluator "(cons 1 '())"),
+    assertEqual "implement eq" (Bool True) (evaluator "(eq? 'a 'a)"),
+    assertEqual "implement eq" (Bool False) (evaluator "(eq? 'b 'a)"),
+    assertEqual "implement eq" (Bool True) (evaluator "(eq? '() '())"),
+    assertEqual "implement eq" (Bool True) (evaluator "(eq? '(1 2 3) '(1 2 3 4))"),
+
     assertEqual "implement cons" (extractValue $ readExpr "(1 . 2)") (evaluator "(cons 1 2)"),
     assertEqual "implement cons" (extractValue $ readExpr "(1 2 3)") (evaluator "(cons 1 '(2 3))"),
 
