@@ -1,3 +1,4 @@
+{-# LANGUAGE ExistentialQuantification #-}
 import System.Environment
 import Test.HUnit
 import Data.Char (toLower)
@@ -242,7 +243,6 @@ stringToSymbol val@(String _) = return $ List [Atom "quote", val]
 
 apply :: String -> [LispVal] -> ThrowsError LispVal
 apply func args = maybe (throwError $ NotFunction "Unrecognized primitive function args" func) ($ args) $ lookup func primitives
-
 primitives:: [(String, [LispVal] -> ThrowsError LispVal)]
 primitives = [("+", numericBinop (+)),
              ("-", numericBinop (-)),
@@ -273,6 +273,7 @@ primitives = [("+", numericBinop (+)),
              ("string->symbol", unaryOperator stringToSymbol),
              ("eq?", eqv),
              ("eqv?", eqv),
+             ("equal?", equal),
              ("cons", cons),
              ("car", car),
              ("cdr", cdr)]
@@ -319,6 +320,23 @@ eqv [String arg1, String arg2] = return $ Bool (arg1 == arg2)
 eqv [Atom arg1, Atom arg2] = return $ Bool (arg1 == arg2)
 eqv [List arg1, List arg2] = return $ Bool ((length arg1 == length arg2) && (all (== True) $ zipWith (==) arg1 arg2)) --different from Tang's
 
+data Unpacker = forall a. Eq a => AnyUnpacker (LispVal -> ThrowsError a)
+
+unpackerEqual :: LispVal -> LispVal -> Unpacker -> ThrowsError Bool
+unpackerEqual arg1 arg2 (AnyUnpacker unpacker) =
+  do unpacked1 <- unpacker arg1
+     unpacked2 <- unpacker arg2
+     return (unpacked1 == unpacked2)
+     `catchError` (const (return $ False))
+
+equal :: [LispVal] -> ThrowsError LispVal
+equal [arg1, arg2] =
+    do
+      primitiveEquals <- liftM or $mapM (unpackerEqual arg1 arg2) [AnyUnpacker unpackNum, AnyUnpacker unpackStr, AnyUnpacker unpackBool]
+      eqvEquals <- eqv [arg1, arg2]
+      return $ Bool (primitiveEquals || let Bool x = eqvEquals in x)
+equal badArgList = throwError $ NumArgs 2 badArgList
+
 -- Implement basic Lisp handling
 car :: [LispVal] -> ThrowsError LispVal
 car [List (x:xs)] = return x
@@ -362,10 +380,15 @@ testList =  TestList $ map TestCase
     assertEqual "implement if statement" (Number 9) (evaluator "(if (= 3 3) (+ 2 3 (- 5 1)) \"unequal\")"),
 
 -- test list primitive functionality
-    assertEqual "implement eq" (Bool True) (evaluator "(eq? 'a 'a)"),
-    assertEqual "implement eq" (Bool False) (evaluator "(eq? 'b 'a)"),
-    assertEqual "implement eq" (Bool True) (evaluator "(eq? '() '())"),
-    assertEqual "implement eq" (Bool True) (evaluator "(eq? '(1 2 3) '(1 2 3 4))"),
+    assertEqual "implement eq?" (Bool True) (evaluator "(eq? 'a 'a)"),
+    assertEqual "implement eq?" (Bool False) (evaluator "(eq? 'b 'a)"),
+    assertEqual "implement eq?" (Bool True) (evaluator "(eq? '() '())"),
+    assertEqual "implement eq?" (Bool False) (evaluator "(eq? '(1 2 3) '(1 2 3 4))"),
+
+    assertEqual "implement equal" (Bool True) (evaluator "(equal? 'a 'a)"),
+    assertEqual "implement equal" (Bool False) (evaluator "(equal? 'b 'a)"),
+    assertEqual "implement equal" (Bool True) (evaluator "(equal? '() '())"),
+    assertEqual "implement equal" (Bool False) (evaluator "(equal? '(1 2 3) '(1 2 3 4))"),
 
     assertEqual "implement cons" (extractValue $ readExpr "(1 . 2)") (evaluator "(cons 1 2)"),
     assertEqual "implement cons" (extractValue $ readExpr "(1 2 3)") (evaluator "(cons 1 '(2 3))"),
