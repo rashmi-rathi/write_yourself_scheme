@@ -208,11 +208,15 @@ eval val@(Number _) = return val
 eval val@(Bool _) = return val
 eval (List [Atom "quote", val]) = return val
 
-eval (List [Atom "if", pred, conseq, alt]) = do
-                                               result <- eval pred
-                                               x <- if result == (Bool False) then (eval alt) else (eval conseq)
-                                               return x
-
+eval (List [Atom "if", pred, conseq, alt]) =
+    do
+      result <- eval pred
+      x <- ifElse result conseq alt
+      return x
+      where
+        ifElse pred conseq alt
+          | (pred == Bool True) = (eval conseq)
+          | (pred == Bool False) = (eval alt)
 
 eval (List (Atom func: args)) = mapM eval args >>= apply func
 eval badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
@@ -335,6 +339,7 @@ equal [arg1, arg2] =
       primitiveEquals <- liftM or $mapM (unpackerEqual arg1 arg2) [AnyUnpacker unpackNum, AnyUnpacker unpackStr, AnyUnpacker unpackBool]
       eqvEquals <- eqv [arg1, arg2]
       return $ Bool (primitiveEquals || let Bool x = eqvEquals in x)
+
 equal badArgList = throwError $ NumArgs 2 badArgList
 
 -- Implement basic Lisp handling
