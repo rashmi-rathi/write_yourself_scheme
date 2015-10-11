@@ -322,7 +322,7 @@ eqv [Bool arg1, Bool arg2] = return $ Bool (arg1 == arg2)
 eqv [Number arg1, Number arg2] = return $ Bool (arg1 == arg2)
 eqv [String arg1, String arg2] = return $ Bool (arg1 == arg2)
 eqv [Atom arg1, Atom arg2] = return $ Bool (arg1 == arg2)
-eqv [List arg1, List arg2] = return $ Bool ((length arg1 == length arg2) && (all (== True) $ zipWith (==) arg1 arg2)) --different from Tang's
+eqv [List arg1, List arg2] = return $ Bool ((length arg1 == length arg2) && (and $ zipWith (==) arg1 arg2)) --different from Tang's
 
 data Unpacker = forall a. Eq a => AnyUnpacker (LispVal -> ThrowsError a)
 
@@ -336,7 +336,9 @@ unpackerEqual arg1 arg2 (AnyUnpacker unpacker) =
 equal :: [LispVal] -> ThrowsError LispVal
 equal [arg1, arg2] =
     do
-      primitiveEquals <- liftM or $mapM (unpackerEqual arg1 arg2) [AnyUnpacker unpackNum, AnyUnpacker unpackStr, AnyUnpacker unpackBool]
+      primitiveEquals <- liftM or $ mapM (unpackerEqual arg1 arg2) [AnyUnpacker unpackNum,
+                                                                    AnyUnpacker unpackStr,
+                                                                    AnyUnpacker unpackBool]
       eqvEquals <- eqv [arg1, arg2]
       return $ Bool (primitiveEquals || let Bool x = eqvEquals in x)
 
@@ -394,6 +396,8 @@ testList =  TestList $ map TestCase
     assertEqual "implement equal" (Bool False) (evaluator "(equal? 'b 'a)"),
     assertEqual "implement equal" (Bool True) (evaluator "(equal? '() '())"),
     assertEqual "implement equal" (Bool False) (evaluator "(equal? '(1 2 3) '(1 2 3 4))"),
+    assertEqual "implement equal" (Bool True) (evaluator "(equal? '(1 2) '(1 2))"),
+    assertEqual "implement equal" (Bool True) (evaluator "(equal? '(1 \"2\") '(1 2))"),
 
     assertEqual "implement cons" (extractValue $ readExpr "(1 . 2)") (evaluator "(cons 1 2)"),
     assertEqual "implement cons" (extractValue $ readExpr "(1 2 3)") (evaluator "(cons 1 '(2 3))"),
