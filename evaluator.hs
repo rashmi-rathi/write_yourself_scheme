@@ -323,6 +323,8 @@ eqv [Number arg1, Number arg2] = return $ Bool (arg1 == arg2)
 eqv [String arg1, String arg2] = return $ Bool (arg1 == arg2)
 eqv [Atom arg1, Atom arg2] = return $ Bool (arg1 == arg2)
 eqv [List arg1, List arg2] = return $ Bool ((length arg1 == length arg2) && (and $ zipWith (==) arg1 arg2)) --different from Tang's
+eqv [_, _] = return $ Bool False
+eqv badArgsList = throwError $ NumArgs 2 badArgsList
 
 data Unpacker = forall a. Eq a => AnyUnpacker (LispVal -> ThrowsError a)
 
@@ -333,6 +335,16 @@ unpackerEqual arg1 arg2 (AnyUnpacker unpacker) =
      return (unpacked1 == unpacked2)
      `catchError` (const (return $ False))
 
+listEquals :: LispVal -> LispVal -> ThrowsError LispVal
+listEquals (List list1) (List list2) =
+    let
+      Right boolList = mapM id $ zipWith (\x y -> equal [x, y]) list1 list2
+    in
+      (liftM Bool $ liftM ((length list1 == length list2) &&) $ liftM or $ mapM unpackBool boolList)
+      `catchError` (const $ return $ Bool False)
+
+listEquals _ _ = return $ Bool False
+
 equal :: [LispVal] -> ThrowsError LispVal
 equal [arg1, arg2] =
     do
@@ -340,7 +352,8 @@ equal [arg1, arg2] =
                                                                     AnyUnpacker unpackStr,
                                                                     AnyUnpacker unpackBool]
       eqvEquals <- eqv [arg1, arg2]
-      return $ Bool (primitiveEquals || let Bool x = eqvEquals in x)
+      lstEquals <- listEquals arg1 arg2
+      return $ Bool (primitiveEquals || let Bool x = eqvEquals in x || let Bool x = lstEquals in x)
 
 equal badArgList = throwError $ NumArgs 2 badArgList
 
@@ -392,11 +405,12 @@ testList =  TestList $ map TestCase
     assertEqual "implement eq?" (Bool True) (evaluator "(eq? '() '())"),
     assertEqual "implement eq?" (Bool False) (evaluator "(eq? '(1 2 3) '(1 2 3 4))"),
 
-    assertEqual "implement equal" (Bool True) (evaluator "(equal? 'a 'a)"),
-    assertEqual "implement equal" (Bool False) (evaluator "(equal? 'b 'a)"),
-    assertEqual "implement equal" (Bool True) (evaluator "(equal? '() '())"),
     assertEqual "implement equal" (Bool False) (evaluator "(equal? '(1 2 3) '(1 2 3 4))"),
+    assertEqual "implement equal" (Bool False) (evaluator "(equal? 'b 'a)"),
+    assertEqual "implement equal" (Bool True) (evaluator "(equal? 'a 'a)"),
+    assertEqual "implement equal" (Bool True) (evaluator "(equal? '() '())"),
     assertEqual "implement equal" (Bool True) (evaluator "(equal? '(1 2) '(1 2))"),
+    assertEqual "implement equal" (Bool True) (evaluator "(equal? 2 \"2\")"),
     assertEqual "implement equal" (Bool True) (evaluator "(equal? '(1 \"2\") '(1 2))"),
 
     assertEqual "implement cons" (extractValue $ readExpr "(1 . 2)") (evaluator "(cons 1 2)"),
