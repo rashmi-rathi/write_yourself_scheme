@@ -380,7 +380,7 @@ cons [badArg] = throwError $ TypeMismatch "pair" badArg
 cons badArgList = throwError $ NumArgs 1 badArgList
 
 evaluator :: String -> LispVal
-evaluator = extractValue . eval . extractValue . readExpr
+evaluator = extractValue . join . (liftM eval) . readExpr
 
 main :: IO ()
 main = do
