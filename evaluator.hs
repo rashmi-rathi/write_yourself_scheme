@@ -85,6 +85,7 @@ showVal (DottedList head tail) = "(" ++ unwordsList head
 instance Show LispVal where
     show = showVal
 
+unwordsList :: [LispVal] -> String
 unwordsList = unwords . map showVal
 
 readExpr :: String -> ThrowsError LispVal
@@ -92,7 +93,6 @@ readExpr input = case parse (parseExpr) "lisp" input  of
                    Left err -> throwError $ Parser err
                    Right val -> return val
 
-parser rule text = parse rule "(source)" text
 
 spaces :: Parser ()
 spaces = skipMany1 space
@@ -202,12 +202,13 @@ parseVector = do
   char ')'
   return . Vector $ listArray (0, (length elems) - 1 ) elems
 
+unlist (List x) = x
+
 eval :: LispVal -> ThrowsError LispVal
 eval val@(String _) = return val
 eval val@(Number _) = return val
 eval val@(Bool _) = return val
 eval (List [Atom "quote", val]) = return val
-
 eval (List [Atom "if", pred, conseq, alt]) =
     do
       result <- eval pred
@@ -218,6 +219,7 @@ eval (List [Atom "if", pred, conseq, alt]) =
           | (pred == Bool True) = (eval conseq)
           | (pred == Bool False) = (eval alt)
 
+eval (List (Atom "cond": args)) = cond args
 eval (List (Atom func: args)) = mapM eval args >>= apply func
 eval badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
@@ -247,6 +249,7 @@ stringToSymbol val@(String _) = return $ List [Atom "quote", val]
 
 apply :: String -> [LispVal] -> ThrowsError LispVal
 apply func args = maybe (throwError $ NotFunction "Unrecognized primitive function args" func) ($ args) $ lookup func primitives
+
 primitives:: [(String, [LispVal] -> ThrowsError LispVal)]
 primitives = [("+", numericBinop (+)),
              ("-", numericBinop (-)),
@@ -379,6 +382,12 @@ cons [x, y] = return (DottedList [x] y)
 cons [badArg] = throwError $ TypeMismatch "pair" badArg
 cons badArgList = throwError $ NumArgs 1 badArgList
 
+cond :: [LispVal] -> ThrowsError LispVal
+cond args = last . head $ y
+      where
+        x = map (map eval) $ map unlist args
+        y = filter (\z -> (extractValue . head $ z) == (Bool True)) x
+
 evaluator :: String -> LispVal
 evaluator = extractValue . join . (liftM eval) . readExpr
 
@@ -390,37 +399,44 @@ main = do
 
 testList =  TestList $ map TestCase
     [assertEqual "" (Number 2) (evaluator "(+ 1 1)"),
-    assertEqual "" (Number 3) (evaluator "(- (+ 4 6 3) 3 5 2)"),
-    assertEqual "" (Bool True) (evaluator "(number? 123)"),
-    assertEqual "" (Bool True) (evaluator "(string? \"hello\")"),
-    assertEqual "Symbol type-testing" (Bool True) (evaluator "(symbol? 'hello)"),
-    assertEqual "List type-testing" (Bool True) (evaluator "(list? '(1 2 3))"),
-    assertEqual "Symbol to string" (extractValue $ readExpr "flying-fish") (evaluator "(symbol->string 'flying-fish)"),
-    assertEqual "implement if statement" (String "yes") (evaluator "(if (> 2 3) \"no\" \"yes\")"),
-    assertEqual "implement if statement" (Number 9) (evaluator "(if (= 3 3) (+ 2 3 (- 5 1)) \"unequal\")"),
+     assertEqual "" (Number 3) (evaluator "(- (+ 4 6 3) 3 5 2)"),
+     assertEqual "" (Bool True) (evaluator "(number? 123)"),
+     assertEqual "" (Bool True) (evaluator "(string? \"hello\")"),
+     assertEqual "symbol type-testing" (Bool True) (evaluator "(symbol? 'hello)"),
+     assertEqual "list type-testing" (Bool True) (evaluator "(list? '(1 2 3))"),
+     assertEqual "symbol to string" (extractValue $ readExpr "flying-fish") (evaluator "(symbol->string 'flying-fish)"),
+     assertEqual "implement if statement" (String "yes") (evaluator "(if (> 2 3) \"no\" \"yes\")"),
+     assertEqual "implement if statement" (Number 9) (evaluator "(if (= 3 3) (+ 2 3 (- 5 1)) \"unequal\")"),
+
+-- implement cond expressions
+     assertEqual "implement cond" (evaluator "'greater") (evaluator "(cond ((> 3 2) 'greater) ((< 3 2) 'less))"),
+     assertEqual "implement cond" (extractValue $ readExpr "'equal") (evaluator "(cond ((> 3 3) 'greater) ((< 3 3) 'less)) (else 'equal)"),
 
 -- test list primitive functionality
-    assertEqual "implement eq?" (Bool True) (evaluator "(eq? 'a 'a)"),
-    assertEqual "implement eq?" (Bool False) (evaluator "(eq? 'b 'a)"),
-    assertEqual "implement eq?" (Bool True) (evaluator "(eq? '() '())"),
-    assertEqual "implement eq?" (Bool False) (evaluator "(eq? '(1 2 3) '(1 2 3 4))"),
 
-    assertEqual "implement equal" (Bool False) (evaluator "(equal? '(1 2 3) '(1 2 3 4))"),
-    assertEqual "implement equal" (Bool False) (evaluator "(equal? 'b 'a)"),
-    assertEqual "implement equal" (Bool True) (evaluator "(equal? 'a 'a)"),
-    assertEqual "implement equal" (Bool True) (evaluator "(equal? '() '())"),
-    assertEqual "implement equal" (Bool True) (evaluator "(equal? '(1 2) '(1 2))"),
-    assertEqual "implement equal" (Bool True) (evaluator "(equal? 2 \"2\")"),
-    assertEqual "implement equal" (Bool True) (evaluator "(equal? '(1 \"2\") '(1 2))"),
+     assertEqual "implement eq?" (Bool True) (evaluator "(eq? 'a 'a)"),
+     assertEqual "implement eq?" (Bool False) (evaluator "(eq? 'b 'a)"),
+     assertEqual "implement eq?" (Bool True) (evaluator "(eq? '() '())"),
+     assertEqual "implement eq?" (Bool False) (evaluator "(eq? '(1 2 3) '(1 2 3 4))"),
 
-    assertEqual "implement cons" (extractValue $ readExpr "(1 . 2)") (evaluator "(cons 1 2)"),
-    assertEqual "implement cons" (extractValue $ readExpr "(1 2 3)") (evaluator "(cons 1 '(2 3))"),
+     assertEqual "implement equal" (Bool False) (evaluator "(equal? '(1 2 3) '(1 2 3 4))"),
+     assertEqual "implement equal" (Bool False) (evaluator "(equal? 'b 'a)"),
+     assertEqual "implement equal" (Bool True) (evaluator "(equal? 'a 'a)"),
+     assertEqual "implement equal" (Bool True) (evaluator "(equal? '() '())"),
+     assertEqual "implement equal" (Bool True) (evaluator "(equal? '(1 2) '(1 2))"),
+     assertEqual "implement equal" (Bool True) (evaluator "(equal? 2 \"2\")"),
+     assertEqual "implement equal" (Bool True) (evaluator "(equal? '(1 \"2\") '(1 2))"),
 
-    assertEqual "implement car" (Number 1) (evaluator "(car '(1 2))"),
-    assertEqual "implement cdr" (List [Number 2, Number 3]) (evaluator "(cdr '(1 2 3))"),
-    assertEqual "implement cdr" (extractValue $ readExpr "()") (evaluator "(cdr '(1))"),
-    assertEqual "implement cdr" (extractValue $ readExpr "(2)") (evaluator "(cdr '(1 . 2))"),
-    assertEqual "implement cdr" (extractValue $ readExpr "(2)") (evaluator "(cdr '(1 . 2))"),
-    assertEqual "implement cdr" (extractValue $ readExpr "(2 . 3)") (evaluator "(cdr '(1 2 . 3))")]
+     assertEqual "implement cons" (extractValue $ readExpr "(1 . 2)") (evaluator "(cons 1 2)"),
+     assertEqual "implement cons" (extractValue $ readExpr "(1 2 3)") (evaluator "(cons 1 '(2 3))"),
+
+     assertEqual "implement car" (Number 1) (evaluator "(car '(1 2))"),
+     assertEqual "implement cdr" (List [Number 2, Number 3]) (evaluator "(cdr '(1 2 3))"),
+     assertEqual "implement cdr" (extractValue $ readExpr "()") (evaluator "(cdr '(1))"),
+     assertEqual "implement cdr" (extractValue $ readExpr "(2)") (evaluator "(cdr '(1 . 2))"),
+     assertEqual "implement cdr" (extractValue $ readExpr "(2)") (evaluator "(cdr '(1 . 2))"),
+     assertEqual "implement cdr" (extractValue $ readExpr "(2 . 3)") (evaluator "(cdr '(1 2 . 3))")]
 
 tests = runTestTT testList
+
+{-list = List [Atom "cond",List [List [Atom ">",Number 3,Number 2],List [Atom "quote",Atom "greater"]],List [List [Atom "<",Number 3,Number 2],List [Atom "quote",Atom "less"]]]-}
