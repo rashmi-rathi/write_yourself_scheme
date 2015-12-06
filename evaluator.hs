@@ -208,6 +208,7 @@ eval :: LispVal -> ThrowsError LispVal
 eval val@(String _) = return val
 eval val@(Number _) = return val
 eval val@(Bool _) = return val
+eval val@(Atom "else") = return $ Bool True
 eval (List [Atom "quote", val]) = return val
 eval (List [Atom "if", pred, conseq, alt]) =
     do
@@ -383,10 +384,20 @@ cons [badArg] = throwError $ TypeMismatch "pair" badArg
 cons badArgList = throwError $ NumArgs 1 badArgList
 
 cond :: [LispVal] -> ThrowsError LispVal
-cond args = last . head $ y
+-- I have left this here so I can comeback and refactor the cond operator
+-- For now it relies on eval 'else to return true. I am not sure if that's the best
+-- way to go about this.
+-- cond args = case (head . last $ list) of
+                  -- (Atom "else") -> if (extractValue . cond (init args)) == Bool True
+                  --                                then (cond (init args))
+                  --                                    else last . last $ list
+                  -- _ -> last . head $ filteredList
+
+cond args = last . head $ filteredList
       where
-        x = map (map eval) $ map unlist args
-        y = filter (\z -> (extractValue . head $ z) == (Bool True)) x
+        list = map unlist args
+        evaluatedList = map (map eval) $ list
+        filteredList = filter (\z -> (extractValue . head $ z) == (Bool True)) evaluatedList
 
 evaluator :: String -> LispVal
 evaluator = extractValue . join . (liftM eval) . readExpr
@@ -410,7 +421,7 @@ testList =  TestList $ map TestCase
 
 -- implement cond expressions
      assertEqual "implement cond" (evaluator "'greater") (evaluator "(cond ((> 3 2) 'greater) ((< 3 2) 'less))"),
-     assertEqual "implement cond" (extractValue $ readExpr "'equal") (evaluator "(cond ((> 3 3) 'greater) ((< 3 3) 'less)) (else 'equal)"),
+     assertEqual "implement cond" (evaluator "'equal") (evaluator "(cond ((> 3 3) 'greater) ((< 3 3) 'less) (else 'equal))"),
 
 -- test list primitive functionality
 
