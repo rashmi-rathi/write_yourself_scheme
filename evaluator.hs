@@ -11,17 +11,17 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 import Numeric
 
 data LispVal = Atom String
-            | List [LispVal]
-            | DottedList [LispVal] LispVal
-            | Number Integer
-            | Float Double
-            | Rational Rational
-            | Complex (Complex Float)
-            | String String
-            | Vector (Array Int LispVal)
-            | Bool Bool
-            | Char Char
-            deriving (Eq)
+             | List [LispVal]
+             | DottedList [LispVal] LispVal
+             | Number Integer
+             | Float Double
+             | Rational Rational
+             | Complex (Complex Float)
+             | String String
+             | Vector (Array Int LispVal)
+             | Bool Bool
+             | Char Char
+             deriving (Eq)
 
 data LispError = NumArgs Integer [LispVal]
                | TypeMismatch String LispVal
@@ -64,10 +64,10 @@ parseExpr = try parseRational
         <|> parseQuoted
         <|> parseVector
         <|> do
-               char '('
-               x <- try parseList <|> parseDottedList
-               char ')'
-               return x
+              char '('
+              x <- try parseList <|> parseDottedList
+              char ')'
+              return x
         <|> parseQuasiQuote
 
 showVal :: LispVal -> String
@@ -89,9 +89,10 @@ unwordsList :: [LispVal] -> String
 unwordsList = unwords . map showVal
 
 readExpr :: String -> ThrowsError LispVal
-readExpr input = case parse (parseExpr) "lisp" input  of
-                   Left err -> throwError $ Parser err
-                   Right val -> return val
+readExpr input =
+  case parse (parseExpr) "lisp" input  of
+    Left err -> throwError $ Parser err
+    Right val -> return val
 
 
 spaces :: Parser ()
@@ -100,7 +101,8 @@ spaces = skipMany1 space
 symbol :: Parser Char
 symbol = oneOf "!$%&|*+-/:<=?>@i^_~#"
 
-escapeChars = do
+escapeChars =
+  do
     char '\\'
     x <- oneOf ['"', '\\', 'n', 'r', 't']
     return $ (case x of
@@ -111,20 +113,23 @@ escapeChars = do
              't'-> '\t')
 
 parseString :: Parser LispVal
-parseString = do
-            char '"'
-            x <- many (escapeChars <|> noneOf "\"")
-            char '"'
-            return (String x)
+parseString =
+  do
+    char '"'
+    x <- many (escapeChars <|> noneOf "\"")
+    char '"'
+    return (String x)
 
 parseAtom :: Parser LispVal
-parseAtom = do first <- letter <|> symbol
-               rest <- many (letter <|> digit <|> symbol)
-               let atom = [first] ++ rest
-               return $ case atom of
-                    "#t" -> Bool True
-                    "#f" -> Bool False
-                    otherwise -> Atom atom
+parseAtom =
+  do
+    first <- letter <|> symbol
+    rest <- many (letter <|> digit <|> symbol)
+    let atom = [first] ++ rest
+    return $ case atom of
+         "#t" -> Bool True
+         "#f" -> Bool False
+         otherwise -> Atom atom
 
 parseNumber :: Parser LispVal
 parseNumber = (liftM (Number . read) $ many1 digit ) <|> try parseHex <|> parseOct
@@ -141,7 +146,8 @@ parseDec = string "#d" >> many (oneOf "0123456789.") >>= (\x -> return . Float .
     rf = read :: String -> Double
 
 parseComplex :: Parser LispVal
-parseComplex =  do
+parseComplex =
+  do
     x <- many $ oneOf "0123456789."
     oneOf "+-"
     y <- many $ oneOf "0123456789."
@@ -149,14 +155,16 @@ parseComplex =  do
     return . Complex $ (read x :: Float) :+ (read y :: Float)
 
 parseRational :: Parser LispVal
-parseRational = do
+parseRational =
+  do
     x <- many digit
     char '/'
     y <- many digit
     return . Rational $ (read x :: Integer) % (read y :: Integer)
 
 parseChar :: Parser LispVal
-parseChar = do
+parseChar =
+  do
     string "#\\"
     x <- many1 letter
     return . Char $ case (map toLower x) of
@@ -169,19 +177,22 @@ parseList :: Parser LispVal
 parseList = liftM List $ sepBy parseExpr spaces
 
 parseDottedList :: Parser LispVal
-parseDottedList = do
+parseDottedList =
+  do
     head <- endBy parseExpr spaces
     tail <- char '.' >> spaces >> parseExpr
     return $ DottedList head tail
 
 parseQuoted :: Parser LispVal
-parseQuoted = do
+parseQuoted =
+  do
     char '\''
     x <- parseExpr
     return $ List [Atom "quote", x]
 
 parseQuasiQuote :: Parser LispVal
-parseQuasiQuote = do
+parseQuasiQuote =
+  do
     char '`'
     char '('
     xs <- liftM List $ sepBy (try parseExpr <|> parseComma) spaces
@@ -196,11 +207,12 @@ parseQuasiQuote = do
 
 {-Come back later to this after reading about sets!-}
 parseVector :: Parser LispVal
-parseVector = do
-  string "#("
-  elems <- sepBy parseExpr spaces
-  char ')'
-  return . Vector $ listArray (0, (length elems) - 1 ) elems
+parseVector =
+  do
+    string "#("
+    elems <- sepBy parseExpr spaces
+    char ')'
+    return . Vector $ listArray (0, (length elems) - 1 ) elems
 
 unlist (List x) = x
 
@@ -211,14 +223,14 @@ eval val@(Bool _) = return val
 eval val@(Atom "else") = return $ Bool True
 eval (List [Atom "quote", val]) = return val
 eval (List [Atom "if", pred, conseq, alt]) =
-    do
-      result <- eval pred
-      x <- ifElse result conseq alt
-      return x
-      where
-        ifElse pred conseq alt
-          | (pred == Bool True) = (eval conseq)
-          | (pred == Bool False) = (eval alt)
+  do
+    result <- eval pred
+    x <- ifElse result conseq alt
+    return x
+    where
+      ifElse pred conseq alt
+        | (pred == Bool True) = (eval conseq)
+        | (pred == Bool False) = (eval alt)
 
 eval (List (Atom "cond": args)) = cond args
 eval (List (Atom func: args)) = mapM eval args >>= apply func
@@ -334,30 +346,31 @@ data Unpacker = forall a. Eq a => AnyUnpacker (LispVal -> ThrowsError a)
 
 unpackerEqual :: LispVal -> LispVal -> Unpacker -> ThrowsError Bool
 unpackerEqual arg1 arg2 (AnyUnpacker unpacker) =
-  do unpacked1 <- unpacker arg1
-     unpacked2 <- unpacker arg2
-     return (unpacked1 == unpacked2)
-     `catchError` (const (return $ False))
+  do
+    unpacked1 <- unpacker arg1
+    unpacked2 <- unpacker arg2
+    return (unpacked1 == unpacked2)
+    `catchError` (const (return $ False))
 
 listEquals :: LispVal -> LispVal -> ThrowsError LispVal
 listEquals (List list1) (List list2) =
-    let
-      Right boolList = mapM id $ zipWith (\x y -> equal [x, y]) list1 list2
-    in
-      (liftM Bool $ liftM ((length list1 == length list2) &&) $ liftM or $ mapM unpackBool boolList)
-      `catchError` (const $ return $ Bool False)
+  let
+    Right boolList = mapM id $ zipWith (\x y -> equal [x, y]) list1 list2
+  in
+    (liftM Bool $ liftM ((length list1 == length list2) &&) $ liftM or $ mapM unpackBool boolList)
+    `catchError` (const $ return $ Bool False)
 
 listEquals _ _ = return $ Bool False
 
 equal :: [LispVal] -> ThrowsError LispVal
 equal [arg1, arg2] =
-    do
-      primitiveEquals <- liftM or $ mapM (unpackerEqual arg1 arg2) [AnyUnpacker unpackNum,
-                                                                    AnyUnpacker unpackStr,
-                                                                    AnyUnpacker unpackBool]
-      eqvEquals <- eqv [arg1, arg2]
-      lstEquals <- listEquals arg1 arg2
-      return $ Bool (primitiveEquals || let Bool x = eqvEquals in x || let Bool x = lstEquals in x)
+  do
+    primitiveEquals <- liftM or $ mapM (unpackerEqual arg1 arg2) [AnyUnpacker unpackNum,
+                                                                  AnyUnpacker unpackStr,
+                                                                  AnyUnpacker unpackBool]
+    eqvEquals <- eqv [arg1, arg2]
+    lstEquals <- listEquals arg1 arg2
+    return $ Bool (primitiveEquals || let Bool x = eqvEquals in x || let Bool x = lstEquals in x)
 
 equal badArgList = throwError $ NumArgs 2 badArgList
 
@@ -393,17 +406,19 @@ cond :: [LispVal] -> ThrowsError LispVal
                   --                                    else last . last $ list
                   -- _ -> last . head $ filteredList
 
-cond args = last . head $ filteredList
-      where
-        list = map unlist args
-        evaluatedList = map (map eval) $ list
-        filteredList = filter (\z -> (extractValue . head $ z) == (Bool True)) evaluatedList
+cond args =
+  last . head $ filteredList
+     where
+       list = map unlist args
+       evaluatedList = map (map eval) $ list
+       filteredList = filter (\z -> (extractValue . head $ z) == (Bool True)) evaluatedList
 
 evaluator :: String -> LispVal
 evaluator = extractValue . join . (liftM eval) . readExpr
 
 main :: IO ()
-main = do
+main =
+  do
     args <- getArgs
     evaled <- return $ liftM show $ readExpr (args !! 0) >>= eval
     putStrLn $ extractValue $ trapError evaled
@@ -423,6 +438,7 @@ testList =  TestList $ map TestCase
      assertEqual "implement cond" (evaluator "'greater") (evaluator "(cond ((> 3 2) 'greater) ((< 3 2) 'less))"),
      assertEqual "implement cond" (evaluator "'equal") (evaluator "(cond ((> 3 3) 'greater) ((< 3 3) 'less) (else 'equal))"),
 
+     assertEqual "implement case" (evaluator "'composite") (evaluator "(case (* 2 3) ((2 3 5 7) 'prime) ((1 4 6 8 9) 'composite))"),
 -- test list primitive functionality
 
      assertEqual "implement eq?" (Bool True) (evaluator "(eq? 'a 'a)"),
