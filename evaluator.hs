@@ -233,6 +233,22 @@ eval (List [Atom "if", pred, conseq, alt]) =
         | (pred == Bool False) = (eval alt)
 
 eval (List (Atom "cond": args)) = cond args
+eval (List (Atom "case" : key : clauses )) =
+  do
+    -- let Right (List xs) = readExpr "(((2 3) 'prime) ((4 5) 'compsite))"
+    -- [((2 3 5 7) (quote prime)),((1 4 6 8 9) (quote composite))]
+    evalKey <- eval key
+    result <- let
+                memv el (List xs) =  liftM (any (== Bool True)) . sequence $ (\x -> eqv [el, x]) <$> xs
+                compareDatum key (List (datum:_)) = memv key datum
+              in
+                filterM (compareDatum evalKey) clauses
+    return $ let List (datum:key:[]) = head $ result in key
+    -- head $ result
+    -- where
+    --   memv el (List xs) = liftM Bool . liftM (any (== Bool True)) . sequence $ (\x -> eqv [el, x]) <$> xs
+    --   compareDatum key (List (List datum):_) = memv key datum
+
 eval (List (Atom func: args)) = mapM eval args >>= apply func
 eval badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
