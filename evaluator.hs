@@ -243,7 +243,7 @@ eval (List (Atom "case" : key : clauses )) =
                 compareDatum key (List (datum:_)) = memv key datum
               in
                 filterM (compareDatum evalKey) clauses
-    return $ let List (datum:key:[]) = head $ result in key
+    let List (datum:key:[]) = head result in (eval key)
     -- head $ result
     -- where
     --   memv el (List xs) = liftM Bool . liftM (any (== Bool True)) . sequence $ (\x -> eqv [el, x]) <$> xs
