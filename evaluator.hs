@@ -214,7 +214,6 @@ parseVector =
     char ')'
     return . Vector $ listArray (0, (length elems) - 1 ) elems
 
-unlist (List x) = x
 
 eval :: LispVal -> ThrowsError LispVal
 eval val@(String _) = return val
@@ -425,6 +424,7 @@ cond :: [LispVal] -> ThrowsError LispVal
 cond args =
   last . head $ filteredList
      where
+       unlist (List x) = x
        list = map unlist args
        -- Perhaps, I shouldn't evaluate the whole list here?
        evaluatedList = (eval <$>) <$> list -- map (map eval) list
