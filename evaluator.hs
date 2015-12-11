@@ -455,6 +455,8 @@ testList =  TestList $ map TestCase
      assertEqual "implement cond" (evaluator "'equal") (evaluator "(cond ((> 3 3) 'greater) ((< 3 3) 'less) (else 'equal))"),
 
      assertEqual "implement case" (evaluator "'composite") (evaluator "(case (* 2 3) ((2 3 5 7) 'prime) ((1 4 6 8 9) 'composite))"),
+     assertEqual "implement case" (evaluator "'composite") (evaluator "(case (car '(c d)) ((a e i o u) 'vowel) ((w y) 'semivowel) (else 'consonant))"),
+
 -- test list primitive functionality
 
      assertEqual "implement eq?" (Bool True) (evaluator "(eq? 'a 'a)"),
