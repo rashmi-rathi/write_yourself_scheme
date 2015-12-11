@@ -243,7 +243,7 @@ eval (List (Atom "case" : key : clauses )) =
                 compareDatum key (List (datum:_)) = memv key datum
               in
                 filterM (compareDatum evalKey) clauses
-    let List (datum:key:[]) = head result in (eval key)
+    let List (datum:ckey:[]) = head result in (eval ckey)
     -- head $ result
     -- where
     --   memv el (List xs) = liftM Bool . liftM (any (== Bool True)) . sequence $ (\x -> eqv [el, x]) <$> xs
@@ -426,7 +426,8 @@ cond args =
   last . head $ filteredList
      where
        list = map unlist args
-       evaluatedList = map (map eval) $ list
+       -- Perhaps, I shouldn't evaluate the whole list here?
+       evaluatedList = (eval <$>) <$> list -- map (map eval) list
        filteredList = filter (\z -> (extractValue . head $ z) == (Bool True)) evaluatedList
 
 evaluator :: String -> LispVal
