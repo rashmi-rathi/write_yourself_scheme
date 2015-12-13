@@ -234,15 +234,19 @@ eval (List [Atom "if", pred, conseq, alt]) =
 eval (List (Atom "cond": args)) = cond args
 eval (List (Atom "case" : key : clauses )) =
   do
-    -- let Right (List xs) = readExpr "(((2 3) 'prime) ((4 5) 'compsite))"
-    -- [((2 3 5 7) (quote prime)),((1 4 6 8 9) (quote composite))]
     evalKey <- eval key
     result <- let
                 memv el (List xs) =  liftM (any (== Bool True)) . sequence $ (\x -> eqv [el, x]) <$> xs
                 compareDatum key (List (datum:_)) = memv key datum
               in
-                filterM (compareDatum evalKey) clauses
+                -- filterM (compareDatum evalKey) clauses
+                case (last clauses) of
+                  val@(List [Atom "else", key]) -> Right [val]
+                  _ -> filterM (compareDatum evalKey) clauses
     let List (datum:ckey:[]) = head result in (eval ckey)
+
+    -- let Right (List xs) = readExpr "(((2 3) 'prime) ((4 5) 'compsite))"
+    -- [((2 3 5 7) (quote prime)),((1 4 6 8 9) (quote composite))]
     -- head $ result
     -- where
     --   memv el (List xs) = liftM Bool . liftM (any (== Bool True)) . sequence $ (\x -> eqv [el, x]) <$> xs
@@ -456,7 +460,8 @@ testList =  TestList $ map TestCase
      assertEqual "implement cond" (evaluator "'equal") (evaluator "(cond ((> 3 3) 'greater) ((< 3 3) 'less) (else 'equal))"),
 
      assertEqual "implement case" (evaluator "'composite") (evaluator "(case (* 2 3) ((2 3 5 7) 'prime) ((1 4 6 8 9) 'composite))"),
-     assertEqual "implement case" (evaluator "'composite") (evaluator "(case (car '(c d)) ((a e i o u) 'vowel) ((w y) 'semivowel) (else 'consonant))"),
+     assertEqual "implement case" (evaluator "'consonant") (evaluator "(case (car '(c d)) ((a e i o u) 'vowel) ((w y) 'semivowel) (else 'consonant))"),
+     assertEqual "implement case" (evaluator "'semivowel") (evaluator "(case (car '(w d)) ((a e i o u) 'vowel) ((w y) 'semivowel) (else 'consonant))"),
 
 -- test list primitive functionality
 
