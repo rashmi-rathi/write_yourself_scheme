@@ -9,6 +9,7 @@ import Control.Monad
 import Control.Monad.Error
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Numeric
+import Debug.Trace
 
 data LispVal = Atom String
              | List [LispVal]
@@ -72,6 +73,7 @@ parseExpr = try parseRational
 
 showVal :: LispVal -> String
 showVal (String contents) = "\"" ++ contents ++ "\""
+showVal (Char char) = char:[]
 showVal (Atom name) = name
 showVal (Number contents) = show contents
 showVal (Bool True) = "#t"
@@ -171,7 +173,7 @@ parseChar =
             "newline" -> '\n'
             "space" -> ' '
             " " -> ' '
-            [x] -> x
+            [y] -> head x
 
 parseList :: Parser LispVal
 parseList = liftM List $ sepBy parseExpr spaces
@@ -216,6 +218,7 @@ parseVector =
 
 
 eval :: LispVal -> ThrowsError LispVal
+eval val@(Char _) = return val
 eval val@(String _) = return val
 eval val@(Number _) = return val
 eval val@(Bool _) = return val
@@ -275,6 +278,17 @@ symbolToString (List [Atom "quote", x]) = return $ x
 symbolToString val@(_) = return val
 stringToSymbol val@(String _) = return $ List [Atom "quote", val]
 
+makeString, stringLength, stringRef, substring, stringAppend :: [LispVal] -> ThrowsError LispVal
+makeString [Number n] = return $ String $ take (fromIntegral n) $ repeat ' '
+makeString [Number n, Char x] = return $ String $ take (fromIntegral n) $ repeat x
+stringLength [String str] = return . Number .fromIntegral $ length str
+stringRef [String str, Number n] = return . Char $ str !! (fromIntegral n)
+substring [String str, Number n, Number m] = return . String $  take mi $ drop ni str
+  where
+    [mi, ni] = map fromIntegral [m-1,n]
+stringAppend strList = liftM String $ liftM (foldr1 (++)) . sequence $ unpackStr <$> strList
+joinString str = liftM String . sequence $ unpackChar <$> str
+
 apply :: String -> [LispVal] -> ThrowsError LispVal
 apply func args = maybe (throwError $ NotFunction "Unrecognized primitive function args" func) ($ args) $ lookup func primitives
 
@@ -293,16 +307,26 @@ primitives = [("+", numericBinop (+)),
              ("<=", numBoolBinop (<=)),
              ("&&", boolBoolBinop (&&)),
              ("||", boolBoolBinop (||)),
+
              ("string=?", strBoolBinop(==)),
              ("string<?", strBoolBinop (<)),
              ("string>?", strBoolBinop (>)),
              ("string<=?", strBoolBinop (<=)),
              ("string>=?", strBoolBinop (>=)),
+             ("make-string", makeString),
+             ("string-length", stringLength),
+             ("string-ref", stringRef),
+             ("substring", substring),
+             ("string-append", stringAppend),
+             ("string", joinString),
+
+
              ("number?", unaryOperator isNumber),
              ("list?", unaryOperator isList),
              ("symbol?", unaryOperator isSymbol),
              ("string?", unaryOperator isString),
              ("boolean?", unaryOperator isBoolean),
+
              ("not", unaryOperator notOp),
              ("symbol->string", unaryOperator symbolToString),
              ("string->symbol", unaryOperator stringToSymbol),
@@ -342,6 +366,9 @@ unpackStr (String s) = return s
 unpackStr (Number s) = return . show $ s
 unpackStr (Bool s) = return . show $ s
 unpackStr notStr = throwError $ TypeMismatch "string" notStr
+
+unpackChar :: LispVal -> ThrowsError Char
+unpackChar (Char c) = return c
 
 unpackBool :: LispVal -> ThrowsError Bool
 unpackBool (Bool b) = return b
@@ -459,8 +486,20 @@ testList =  TestList $ map TestCase
      assertEqual "implement case" (evaluator "'consonant") (evaluator "(case (car '(c d)) ((a e i o u) 'vowel) ((w y) 'semivowel) (else 'consonant))"),
      assertEqual "implement case" (evaluator "'semivowel") (evaluator "(case (car '(w d)) ((a e i o u) 'vowel) ((w y) 'semivowel) (else 'consonant))"),
 
--- test list primitive functionality
+-- string functions
+     assertEqual "string?" (Bool True) (evaluator "(string? \"Hello\")"),
+     assertEqual "make-string" (String "  ") (evaluator "(make-string 2)"),
+     assertEqual "make-string" (String "aa") (evaluator "(make-string 2 #\\a)"),
+     assertEqual "string" (String "Apple") (evaluator "(string #\\A #\\p #\\p #\\l #\\e)"),
+     assertEqual "string-length" (Number 5) (evaluator "(string-length \"Apple\")"),
+     assertEqual "string-ref" (Char 'l') (evaluator "(string-ref \"Apple\" 3)"),
+     -- assertEqual "substring" (Char 'A') (evaluator "(substring \"Apple\" 1)"),
+     assertEqual "substring" (String "pp") (evaluator "(substring \"Apple\" 1 3)"),
+     assertEqual "string-append" (String "AppleBanana") (evaluator "(string-append \"Apple\" \"Banana\")"),
+     -- Implement string->immutable-string ?
+     -- string-set!, string-copy, string-copy!, string-fill!, string-append, string->list, list->string, build-string
 
+-- test list primitive functionality
      assertEqual "implement eq?" (Bool True) (evaluator "(eq? 'a 'a)"),
      assertEqual "implement eq?" (Bool False) (evaluator "(eq? 'b 'a)"),
      assertEqual "implement eq?" (Bool True) (evaluator "(eq? '() '())"),
