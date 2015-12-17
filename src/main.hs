@@ -9,7 +9,6 @@ import Control.Monad
 import Control.Monad.Error
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Numeric
-import Debug.Trace
 
 data LispVal = Atom String
              | List [LispVal]
@@ -137,13 +136,13 @@ parseNumber :: Parser LispVal
 parseNumber = (liftM (Number . read) $ many1 digit ) <|> try parseHex <|> parseOct
 
 parseHex :: Parser LispVal
-parseHex = string "#x">> many (oneOf "0123456789abcdefABCDEF") >>= (\x -> return . Number . fst . head . readHex $ x)
+parseHex = string "#x">> many (oneOf "0123456789abcdefABCDEF") >>= return . Number . fst . head . readHex
 
 parseOct :: Parser LispVal
-parseOct = string "#o" >> many (oneOf "01234567") >>= (\x -> return . Number . fst . head . readOct $ x)
+parseOct = string "#o" >> many (oneOf "01234567") >>= return . Number . fst . head . readOct
 
 parseDec :: Parser LispVal
-parseDec = string "#d" >> many (oneOf "0123456789.") >>= (\x -> return . Float . rf $ x)
+parseDec = string "#d" >> many (oneOf "0123456789.") >>= return . Float . rf
   where
     rf = read :: String -> Double
 
@@ -216,7 +215,6 @@ parseVector =
     char ')'
     return . Vector $ listArray (0, (length elems) - 1 ) elems
 
-
 eval :: LispVal -> ThrowsError LispVal
 eval val@(Char _) = return val
 eval val@(String _) = return val
@@ -279,8 +277,8 @@ symbolToString val@(_) = return val
 stringToSymbol val@(String _) = return $ List [Atom "quote", val]
 
 makeString, stringLength, stringRef, substring, stringAppend :: [LispVal] -> ThrowsError LispVal
-makeString [Number n] = return $ String $ take (fromIntegral n) $ repeat ' '
-makeString [Number n, Char x] = return $ String $ take (fromIntegral n) $ repeat x
+makeString [Number n] = return $ String $ replicate (fromIntegral n) ' '
+makeString [Number n, Char x] = return $ String $ replicate (fromIntegral n) x
 stringLength [String str] = return . Number .fromIntegral $ length str
 stringRef [String str, Number n] = return . Char $ str !! (fromIntegral n)
 substring [String str, Number n, Number m] = return . String $  take mi $ drop ni str
@@ -369,6 +367,8 @@ unpackStr notStr = throwError $ TypeMismatch "string" notStr
 
 unpackChar :: LispVal -> ThrowsError Char
 unpackChar (Char c) = return c
+unpackChar notChar = throwError $ TypeMismatch "char" notChar
+
 
 unpackBool :: LispVal -> ThrowsError Bool
 unpackBool (Bool b) = return b
@@ -397,7 +397,7 @@ unpackerEqual arg1 arg2 (AnyUnpacker unpacker) =
 listEquals :: LispVal -> LispVal -> ThrowsError LispVal
 listEquals (List list1) (List list2) =
   let
-    Right boolList = mapM id $ zipWith (\x y -> equal [x, y]) list1 list2
+    Right boolList = sequence $ zipWith (\x y -> equal [x, y]) list1 list2
   in
     (liftM Bool $ liftM ((length list1 == length list2) &&) $ liftM or $ mapM unpackBool boolList)
     `catchError` (const $ return $ Bool False)
@@ -455,10 +455,10 @@ cond args =
        list = map unlist args
        -- Perhaps, I shouldn't evaluate the whole list here?
        evaluatedList = (eval <$>) <$> list -- map (map eval) list
-       filteredList = filter (\z -> (extractValue . head $ z) == (Bool True)) evaluatedList
+       filteredList = filter ((Bool True ==) . extractValue . head) evaluatedList
 
 evaluator :: String -> LispVal
-evaluator = extractValue . join . (liftM eval) . readExpr
+evaluator = extractValue . join . liftM eval . readExpr
 
 main :: IO ()
 main =
