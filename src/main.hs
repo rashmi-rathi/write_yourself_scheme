@@ -287,6 +287,10 @@ substring [String str, Number n, Number m] = return . String $  take mi $ drop n
 stringAppend strList = liftM String $ liftM (foldr1 (++)) . sequence $ unpackStr <$> strList
 joinString str = liftM String . sequence $ unpackChar <$> str
 
+stringToList, listToString :: [LispVal] -> ThrowsError LispVal
+stringToList [String str] = return . List $ map Char str
+listToString [List listOfChars] = String <$> mapM unpackChar listOfChars
+
 apply :: String -> [LispVal] -> ThrowsError LispVal
 apply func args = maybe (throwError $ NotFunction "Unrecognized primitive function args" func) ($ args) $ lookup func primitives
 
@@ -317,6 +321,8 @@ primitives = [("+", numericBinop (+)),
              ("substring", substring),
              ("string-append", stringAppend),
              ("string", joinString),
+             ("string->list", stringToList),
+             ("list->string", listToString),
 
 
              ("number?", unaryOperator isNumber),
@@ -493,9 +499,10 @@ testList =  TestList $ map TestCase
      assertEqual "string" (String "Apple") (evaluator "(string #\\A #\\p #\\p #\\l #\\e)"),
      assertEqual "string-length" (Number 5) (evaluator "(string-length \"Apple\")"),
      assertEqual "string-ref" (Char 'l') (evaluator "(string-ref \"Apple\" 3)"),
-     -- assertEqual "substring" (Char 'A') (evaluator "(substring \"Apple\" 1)"),
      assertEqual "substring" (String "pp") (evaluator "(substring \"Apple\" 1 3)"),
      assertEqual "string-append" (String "AppleBanana") (evaluator "(string-append \"Apple\" \"Banana\")"),
+     assertEqual "string->list" (List [Char 'A', Char 'b', Char 'c']) (evaluator "(string->list \"Abc\")"),
+     assertEqual "list->string" (String "Cmsk") (evaluator "(list->string '(#\\C #\\m #\\s #\\k))"),
      -- Implement string->immutable-string ?
      -- string-set!, string-copy, string-copy!, string-fill!, string-append, string->list, list->string, build-string
 
