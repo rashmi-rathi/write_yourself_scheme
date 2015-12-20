@@ -284,11 +284,11 @@ stringRef [String str, Number n] = return . Char $ str !! (fromIntegral n)
 substring [String str, Number n, Number m] = return . String $  take mi $ drop ni str
   where
     [mi, ni] = map fromIntegral [m-1,n]
-stringAppend strList = liftM String $ liftM (foldr1 (++)) . sequence $ unpackStr <$> strList
-joinString str = liftM String . sequence $ unpackChar <$> str
+stringAppend strList = String <$> foldr1 (++) <$> sequence (unpackStr <$> strList)
+joinString str = String <$> sequence (unpackChar <$> str)
 
 stringToList, listToString :: [LispVal] -> ThrowsError LispVal
-stringToList [String str] = return . List $ map Char str
+stringToList [String str] = return . List $ Char <$> str
 listToString [List listOfChars] = String <$> mapM unpackChar listOfChars
 
 apply :: String -> [LispVal] -> ThrowsError LispVal
@@ -403,9 +403,9 @@ unpackerEqual arg1 arg2 (AnyUnpacker unpacker) =
 listEquals :: LispVal -> LispVal -> ThrowsError LispVal
 listEquals (List list1) (List list2) =
   let
-    Right boolList = sequence $ zipWith (\x y -> equal [x, y]) list1 list2
+    Right boolList = zipWithM (\x y -> equal [x, y]) list1 list2
   in
-    (liftM Bool $ liftM ((length list1 == length list2) &&) $ liftM or $ mapM unpackBool boolList)
+   (Bool <$> (length list1 == length list2 &&) <$> (or <$> mapM unpackBool boolList))
     `catchError` (const $ return $ Bool False)
 
 listEquals _ _ = return $ Bool False
@@ -413,7 +413,7 @@ listEquals _ _ = return $ Bool False
 equal :: [LispVal] -> ThrowsError LispVal
 equal [arg1, arg2] =
   do
-    primitiveEquals <- liftM or $ mapM (unpackerEqual arg1 arg2) [AnyUnpacker unpackNum,
+    primitiveEquals <- or <$> mapM (unpackerEqual arg1 arg2) [AnyUnpacker unpackNum,
                                                                   AnyUnpacker unpackStr,
                                                                   AnyUnpacker unpackBool]
     eqvEquals <- eqv [arg1, arg2]
@@ -438,7 +438,7 @@ cdr badArgList = throwError $ NumArgs 1 badArgList
 
 cons :: [LispVal] -> ThrowsError LispVal
 cons [x, List []] = return (List [x])
-cons [x, List y] = return (List ([x] ++ y))
+cons [x, List y] = return (List (x:y))
 cons [x, DottedList ys y] = return (DottedList (x:ys) y)
 cons [x, y] = return (DottedList [x] y)
 cons [badArg] = throwError $ TypeMismatch "pair" badArg
@@ -458,13 +458,13 @@ cond args =
   last . head $ filteredList
      where
        unlist (List x) = x
-       list = map unlist args
+       list = unlist <$> args
        -- Perhaps, I shouldn't evaluate the whole list here?
        evaluatedList = (eval <$>) <$> list -- map (map eval) list
        filteredList = filter ((Bool True ==) . extractValue . head) evaluatedList
 
 evaluator :: String -> LispVal
-evaluator = extractValue . join . liftM eval . readExpr
+evaluator = extractValue . join . fmap eval . readExpr
 
 main :: IO ()
 main =
