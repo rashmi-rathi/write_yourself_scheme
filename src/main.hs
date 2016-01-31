@@ -50,6 +50,7 @@ instance Error LispError where
 
 type ThrowsError = Either LispError
 
+trapError :: (Show a, MonadError a m) => m String -> m String
 trapError action = catchError action (return . show)
 
 extractValue :: ThrowsError a -> a
@@ -217,42 +218,55 @@ parseVector =
     char ')'
     return . Vector $ listArray (0, (length elems) - 1 ) elems
 
-eval :: LispVal -> ThrowsError LispVal
-eval val@(Char _) = return val
-eval val@(String _) = return val
-eval val@(Number _) = return val
-eval val@(Bool _) = return val
-eval val@(Atom "else") = return $ Bool True
-eval (List [Atom "quote", val]) = return val
-eval (List [Atom "if", pred, conseq, alt]) =
+eval :: Env -> LispVal -> IOThrowsError LispVal
+eval env val@(Char _) = return val
+eval env val@(String _) = return val
+eval env val@(Number _) = return val
+eval env val@(Bool _) = return val
+eval env val@(Atom "else") = return $ Bool True
+eval env (Atom var) = getVar env var
+eval env (List [Atom "quote", val]) = return val
+eval env (List [Atom "if", pred, conseq, alt]) =
   do
-    result <- eval pred
+    result <- eval env pred
     x <- ifElse result conseq alt
     return x
     where
       ifElse pred conseq alt
-        | (pred == Bool True) = (eval conseq)
-        | (pred == Bool False) = (eval alt)
+        | (pred == Bool True) = (eval env conseq)
+        | (pred == Bool False) = (eval env alt)
 
-eval (List (Atom "cond": args)) = cond args
-eval (List (Atom "case" : key : clauses )) =
+eval env (List [Atom "set!", Atom var, form]) =
+     eval env form >>= setVar env var
+eval env (List [Atom "def", Atom var, form]) =
+     eval env form >>= defineVar env var
+
+eval env (List (Atom "cond": args)) = ErrorT (filteredList >>= \x -> runErrorT $ x)
+     where
+       unlist (List x) = x
+       list = unlist <$> args
+       -- Perhaps, I shouldn't evaluate the whole list here?
+       evaluatedList = ((eval env) <$>) <$> list -- map (map eval) list
+       filteredList = (last . head) <$> (filterM (\x -> (runErrorT . head $ x) >>= return . (Bool True ==) . extractValue) evaluatedList)
+
+eval env (List (Atom "case" : key : clauses )) =
   do
-    evalKey <- eval key
+    evalKey <- eval env key
     result <- let
                 memv el (List xs) =  liftM (any (== Bool True)) . sequence $ (\x -> eqv [el, x]) <$> xs
                 compareDatum key (List (datum:_)) = memv key datum
               in
                 case (last clauses) of
                   val@(List [Atom "else", key]) -> case (liftM null $ clausesWithoutElse) of
-                                                     Right True -> Right [val]
-                                                     _ -> filterM (compareDatum evalKey) (init clauses)
+                                                     Right True -> liftThrows $ Right [val]
+                                                     _ -> liftThrows $ filterM (compareDatum evalKey) (init clauses)
                                                      where
                                                         clausesWithoutElse = filterM (compareDatum evalKey) (init clauses)
-                  _ -> filterM (compareDatum evalKey) clauses
-    let List (datum:ckey:[]) = head result in (eval ckey)
+                  _ -> liftThrows $ filterM (compareDatum evalKey) clauses
+    let List (datum:ckey:[]) = head result in (eval env ckey)
 
-eval (List (Atom func: args)) = mapM eval args >>= apply func
-eval badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
+eval env (List (Atom func : args)) = mapM (eval env) args >>= liftThrows . apply func
+eval env badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
 isNumber, isList, isSymbol, isString, isBoolean, notOp, symbolToString, stringToSymbol :: LispVal -> ThrowsError LispVal
 isNumber (Number _) = return $ Bool True
@@ -446,7 +460,7 @@ cons [x, y] = return (DottedList [x] y)
 cons [badArg] = throwError $ TypeMismatch "pair" badArg
 cons badArgList = throwError $ NumArgs 1 badArgList
 
-cond :: [LispVal] -> ThrowsError LispVal
+-- cond :: Env -> [LispVal] -> ThrowsError LispVal
 -- I have left this here so I can comeback and refactor the cond operator
 -- For now it relies on eval 'else to return true. I am not sure if that's the best
 -- way to go about this.
@@ -456,17 +470,8 @@ cond :: [LispVal] -> ThrowsError LispVal
                   --                                    else last . last $ list
                   -- _ -> last . head $ filteredList
 
-cond args =
-  last . head $ filteredList
-     where
-       unlist (List x) = x
-       list = unlist <$> args
-       -- Perhaps, I shouldn't evaluate the whole list here?
-       evaluatedList = (eval <$>) <$> list -- map (map eval) list
-       filteredList = filter ((Bool True ==) . extractValue . head) evaluatedList
-
-evaluator :: String -> LispVal
-evaluator = extractValue . join . fmap eval . readExpr
+{-evaluator :: String -> LispVal-}
+{-evaluator = extractValue . join . fmap eval . readExpr-}
 
 flushStr :: String -> IO ()
 flushStr str = putStr str >> hFlush stdout
@@ -474,11 +479,11 @@ flushStr str = putStr str >> hFlush stdout
 readPrompt :: String -> IO String
 readPrompt prompt = flushStr prompt >> getLine
 
-evalString :: String -> IO String
-evalString expr = return $ extractValue $ trapError (liftM show $ readExpr expr >>= eval)
+evalString :: Env -> String -> IO String
+evalString env expr = runIOThrows $ liftM show $ (liftThrows $ readExpr expr) >>= eval env
 
-evalAndPrint :: String -> IO ()
-evalAndPrint expr = evalString expr >>= putStrLn
+evalAndPrint :: Env -> String -> IO ()
+evalAndPrint env expr = evalString env expr >>= putStrLn
 
 until_ :: Monad m => (a -> Bool) -> m a -> (a -> m ()) -> m ()
 until_ pred prompt action = do
@@ -487,8 +492,11 @@ until_ pred prompt action = do
     then return ()
     else action result >> until_ pred prompt action
 
+runOne :: String -> IO ()
+runOne expr = nullEnv >>= flip evalAndPrint expr
+
 runRepl :: IO ()
-runRepl = until_ (== "quit") (readPrompt "Lisp>> ") evalAndPrint
+runRepl = nullEnv >>= until_ (== "quit") (readPrompt "Lisp>>> ") . evalAndPrint
 
 type Env = IORef [(String, IORef LispVal)]
 nullEnv :: IO Env
@@ -541,65 +549,6 @@ main =
 
     case length args of
       0 -> runRepl
-      1 -> evalAndPrint $ args !! 0
+      1 -> runOne $ args !! 0
       otherwise -> putStrLn "Program takes only 0 or 1 argument"
-
-testList =  TestList $ map TestCase
-    [assertEqual "" (Number 2) (evaluator "(+ 1 1)"),
-     assertEqual "" (Number 3) (evaluator "(- (+ 4 6 3) 3 5 2)"),
-     assertEqual "" (Bool True) (evaluator "(number? 123)"),
-     assertEqual "" (Bool True) (evaluator "(string? \"hello\")"),
-     assertEqual "symbol type-testing" (Bool True) (evaluator "(symbol? 'hello)"),
-     assertEqual "list type-testing" (Bool True) (evaluator "(list? '(1 2 3))"),
-     assertEqual "symbol to string" (extractValue $ readExpr "flying-fish") (evaluator "(symbol->string 'flying-fish)"),
-     assertEqual "implement if statement" (String "yes") (evaluator "(if (> 2 3) \"no\" \"yes\")"),
-     assertEqual "implement if statement" (Number 9) (evaluator "(if (= 3 3) (+ 2 3 (- 5 1)) \"unequal\")"),
-
--- implement cond expressions
-     assertEqual "implement cond" (evaluator "'greater") (evaluator "(cond ((> 3 2) 'greater) ((< 3 2) 'less))"),
-     assertEqual "implement cond" (evaluator "'equal") (evaluator "(cond ((> 3 3) 'greater) ((< 3 3) 'less) (else 'equal))"),
-
-     assertEqual "implement case" (evaluator "'composite") (evaluator "(case (* 2 3) ((2 3 5 7) 'prime) ((1 4 6 8 9) 'composite))"),
-     assertEqual "implement case" (evaluator "'consonant") (evaluator "(case (car '(c d)) ((a e i o u) 'vowel) ((w y) 'semivowel) (else 'consonant))"),
-     assertEqual "implement case" (evaluator "'semivowel") (evaluator "(case (car '(w d)) ((a e i o u) 'vowel) ((w y) 'semivowel) (else 'consonant))"),
-
--- string functions
-     assertEqual "string?" (Bool True) (evaluator "(string? \"Hello\")"),
-     assertEqual "make-string" (String "  ") (evaluator "(make-string 2)"),
-     assertEqual "make-string" (String "aa") (evaluator "(make-string 2 #\\a)"),
-     assertEqual "string" (String "Apple") (evaluator "(string #\\A #\\p #\\p #\\l #\\e)"),
-     assertEqual "string-length" (Number 5) (evaluator "(string-length \"Apple\")"),
-     assertEqual "string-ref" (Char 'l') (evaluator "(string-ref \"Apple\" 3)"),
-     assertEqual "substring" (String "pp") (evaluator "(substring \"Apple\" 1 3)"),
-     assertEqual "string-append" (String "AppleBanana") (evaluator "(string-append \"Apple\" \"Banana\")"),
-     assertEqual "string->list" (List [Char 'A', Char 'b', Char 'c']) (evaluator "(string->list \"Abc\")"),
-     assertEqual "list->string" (String "Cmsk") (evaluator "(list->string '(#\\C #\\m #\\s #\\k))"),
-     -- Implement string->immutable-string ?
-     -- string-set!, string-copy, string-copy!, string-fill!, build-string
-
--- test list primitive functionality
-     assertEqual "implement eq?" (Bool True) (evaluator "(eq? 'a 'a)"),
-     assertEqual "implement eq?" (Bool False) (evaluator "(eq? 'b 'a)"),
-     assertEqual "implement eq?" (Bool True) (evaluator "(eq? '() '())"),
-     assertEqual "implement eq?" (Bool False) (evaluator "(eq? '(1 2 3) '(1 2 3 4))"),
-
-     assertEqual "implement equal" (Bool False) (evaluator "(equal? '(1 2 3) '(1 2 3 4))"),
-     assertEqual "implement equal" (Bool False) (evaluator "(equal? 'b 'a)"),
-     assertEqual "implement equal" (Bool True) (evaluator "(equal? 'a 'a)"),
-     assertEqual "implement equal" (Bool True) (evaluator "(equal? '() '())"),
-     assertEqual "implement equal" (Bool True) (evaluator "(equal? '(1 2) '(1 2))"),
-     assertEqual "implement equal" (Bool True) (evaluator "(equal? 2 \"2\")"),
-     assertEqual "implement equal" (Bool True) (evaluator "(equal? '(1 \"2\") '(1 2))"),
-
-     assertEqual "implement cons" (extractValue $ readExpr "(1 . 2)") (evaluator "(cons 1 2)"),
-     assertEqual "implement cons" (extractValue $ readExpr "(1 2 3)") (evaluator "(cons 1 '(2 3))"),
-
-     assertEqual "implement car" (Number 1) (evaluator "(car '(1 2))"),
-     assertEqual "implement cdr" (List [Number 2, Number 3]) (evaluator "(cdr '(1 2 3))"),
-     assertEqual "implement cdr" (extractValue $ readExpr "()") (evaluator "(cdr '(1))"),
-     assertEqual "implement cdr" (extractValue $ readExpr "(2)") (evaluator "(cdr '(1 . 2))"),
-     assertEqual "implement cdr" (extractValue $ readExpr "(2)") (evaluator "(cdr '(1 . 2))"),
-     assertEqual "implement cdr" (extractValue $ readExpr "(2 . 3)") (evaluator "(cdr '(1 2 . 3))")]
-
-tests = runTestTT testList
 
