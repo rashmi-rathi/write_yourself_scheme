@@ -23,7 +23,10 @@ data LispVal = Atom String
              | Vector (Array Int LispVal)
              | Bool Bool
              | Char Char
-             deriving (Eq)
+             | PrimitiveFunc ([LispVal] -> ThrowsError LispVal)
+             | Func { params :: [String], vararg :: (Maybe String),
+                      body :: [LispVal], closure :: Env}
+             -- deriving (Eq)
 
 data LispError = NumArgs Integer [LispVal]
                | TypeMismatch String LispVal
@@ -85,6 +88,12 @@ showVal (DottedList head tail) = "(" ++ unwordsList head
                                      ++  "."
                                      ++ showVal tail
                                      ++ ")"
+showVal (PrimitiveFunc _) = "<primitive>"
+showVal (Func {params = args, vararg = varargs, body = body, closure = env}) =
+  "(lambda (" ++ unwords (map show args) ++
+    (case varargs of
+       Nothing -> ""
+       Just arg -> " . " ++ arg) ++ ") ...)"
 
 instance Show LispVal where
     show = showVal
@@ -219,6 +228,17 @@ parseVector =
     return . Vector $ listArray (0, (length elems) - 1 ) elems
 
 eval :: Env -> LispVal -> IOThrowsError LispVal
+eval env (List (Atom "define" : List (Atom var : params ) : body)) =
+  makeNormalFunc env params body >>= defineVar env var
+eval env (List (Atom "define" : DottedList (Atom var : params) varargs : body)) =
+  makeVarArgs varargs env params body >>= defineVar env var
+eval env (List (Atom "lambda" : List params : body)) =
+  makeNormalFunc env params body
+eval env (List (Atom "lambda" : DottedList params varargs : body)) =
+  makeVarArgs varargs env params body
+eval env (List (Atom "lambda" : varargs@(Atom _) : body)) =
+  makeVarArgs varargs env [] body
+
 eval env val@(Char _) = return val
 eval env val@(String _) = return val
 eval env val@(Number _) = return val
@@ -229,43 +249,46 @@ eval env (List [Atom "quote", val]) = return val
 eval env (List [Atom "if", pred, conseq, alt]) =
   do
     result <- eval env pred
-    x <- ifElse result conseq alt
+    x <- case pred of
+              Bool True -> (eval env conseq)
+              Bool False -> (eval env alt)
     return x
-    where
-      ifElse pred conseq alt
-        | (pred == Bool True) = (eval env conseq)
-        | (pred == Bool False) = (eval env alt)
 
 eval env (List [Atom "set!", Atom var, form]) =
      eval env form >>= setVar env var
-eval env (List [Atom "def", Atom var, form]) =
+eval env (List [Atom "define", Atom var, form]) =
      eval env form >>= defineVar env var
 
-eval env (List (Atom "cond": args)) = ErrorT (filteredList >>= \x -> runErrorT $ x)
-     where
-       unlist (List x) = x
-       list = unlist <$> args
-       -- Perhaps, I shouldn't evaluate the whole list here?
-       evaluatedList = ((eval env) <$>) <$> list -- map (map eval) list
-       filteredList = (last . head) <$> (filterM (\x -> (runErrorT . head $ x) >>= return . (Bool True ==) . extractValue) evaluatedList)
+{-eval env (List (Atom "cond": args)) = ErrorT (filteredList >>= \x -> runErrorT $ x)-}
+{-     where-}
+{-       unlist (List x) = x-}
+{-       list = unlist <$> args-}
+{-       -- Perhaps, I shouldn't evaluate the whole list here?-}
+{-       evaluatedList = ((eval env) <$>) <$> list -- map (map eval) list-}
+{-       filteredList = (last . head) <$> (filterM (\x -> (runErrorT . head $ x) >>= return . (Bool True ==) . extractValue) evaluatedList)-}
 
-eval env (List (Atom "case" : key : clauses )) =
-  do
-    evalKey <- eval env key
-    result <- let
-                memv el (List xs) =  liftM (any (== Bool True)) . sequence $ (\x -> eqv [el, x]) <$> xs
-                compareDatum key (List (datum:_)) = memv key datum
-              in
-                case (last clauses) of
-                  val@(List [Atom "else", key]) -> case (liftM null $ clausesWithoutElse) of
-                                                     Right True -> liftThrows $ Right [val]
-                                                     _ -> liftThrows $ filterM (compareDatum evalKey) (init clauses)
-                                                     where
-                                                        clausesWithoutElse = filterM (compareDatum evalKey) (init clauses)
-                  _ -> liftThrows $ filterM (compareDatum evalKey) clauses
-    let List (datum:ckey:[]) = head result in (eval env ckey)
+{-eval env (List (Atom "case" : key : clauses )) =-}
+{-  do-}
+{-    evalKey <- eval env key-}
+{-    result <- let-}
+{-                memv el (List xs) =  liftM (any (== Bool True)) . sequence $ (\x -> eqv [el, x]) <$> xs-}
+{-                compareDatum key (List (datum:_)) = memv key datum-}
+{-              in-}
+{-                case (last clauses) of-}
+{-                  val@(List [Atom "else", key]) -> case (liftM null $ clausesWithoutElse) of-}
+{-                                                     Right True -> liftThrows $ Right [val]-}
+{-                                                     _ -> liftThrows $ filterM (compareDatum evalKey) (init clauses)-}
+{-                                                     where-}
+{-                                                        clausesWithoutElse = filterM (compareDatum evalKey) (init clauses)-}
+{-                  _ -> liftThrows $ filterM (compareDatum evalKey) clauses-}
+{-    let List (datum:ckey:[]) = head result in (eval env ckey)-}
 
-eval env (List (Atom func : args)) = mapM (eval env) args >>= liftThrows . apply func
+-- eval env (List (Atom func : args)) = mapM (eval env) args >>= liftThrows . apply func
+eval env (List (function : args)) = do
+  func <- eval env function
+  argVals <- mapM (eval env) args
+  apply func argVals
+
 eval env badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
 isNumber, isList, isSymbol, isString, isBoolean, notOp, symbolToString, stringToSymbol :: LispVal -> ThrowsError LispVal
@@ -307,8 +330,21 @@ stringToList, listToString :: [LispVal] -> ThrowsError LispVal
 stringToList [String str] = return . List $ Char <$> str
 listToString [List listOfChars] = String <$> mapM unpackChar listOfChars
 
-apply :: String -> [LispVal] -> ThrowsError LispVal
-apply func args = maybe (throwError $ NotFunction "Unrecognized primitive function args" func) ($ args) $ lookup func primitives
+-- apply :: String -> [LispVal] -> ThrowsError LispVal
+-- apply func args = maybe (throwError $ NotFunction "Unrecognized primitive function args" func) ($ args) $ lookup func primitives
+apply :: LispVal -> [LispVal] -> IOThrowsError LispVal
+apply (PrimitiveFunc func) args = liftThrows $ func args
+apply (Func params varargs body closure) args =
+  if num params /= num args && varargs == Nothing
+     then throwError $ NumArgs (num params) args
+          else (liftIO $ bindVars closure $ zip params args) >>= bindVarArgs varargs >>= evalBody
+  where remainingArgs = drop (length params) args
+        num = toInteger . length
+        evalBody env = liftM last $ mapM (eval env) body
+        bindVarArgs arg env =
+          case arg of
+            Just argName -> liftIO $ bindVars env [(argName, List $ remainingArgs)]
+            Nothing -> return env
 
 primitives:: [(String, [LispVal] -> ThrowsError LispVal)]
 primitives = [("+", numericBinop (+)),
@@ -402,7 +438,7 @@ eqv [Bool arg1, Bool arg2] = return $ Bool (arg1 == arg2)
 eqv [Number arg1, Number arg2] = return $ Bool (arg1 == arg2)
 eqv [String arg1, String arg2] = return $ Bool (arg1 == arg2)
 eqv [Atom arg1, Atom arg2] = return $ Bool (arg1 == arg2)
-eqv [List arg1, List arg2] = return $ Bool ((length arg1 == length arg2) && (and $ zipWith (==) arg1 arg2)) --different from Tang's
+{-eqv [List arg1, List arg2] = return $ Bool ((length arg1 == length arg2) && (and $ zipWith (==) arg1 arg2)) --different from Tang's-}
 eqv [_, _] = return $ Bool False
 eqv badArgsList = throwError $ NumArgs 2 badArgsList
 
@@ -470,9 +506,6 @@ cons badArgList = throwError $ NumArgs 1 badArgList
                   --                                    else last . last $ list
                   -- _ -> last . head $ filteredList
 
-{-evaluator :: String -> LispVal-}
-{-evaluator = extractValue . join . fmap eval . readExpr-}
-
 flushStr :: String -> IO ()
 flushStr str = putStr str >> hFlush stdout
 
@@ -481,6 +514,9 @@ readPrompt prompt = flushStr prompt >> getLine
 
 evalString :: Env -> String -> IO String
 evalString env expr = runIOThrows $ liftM show $ (liftThrows $ readExpr expr) >>= eval env
+
+evaluator :: String -> IO String
+evaluator expr = nullEnv >>= flip evalString expr
 
 evalAndPrint :: Env -> String -> IO ()
 evalAndPrint env expr = evalString env expr >>= putStrLn
@@ -493,10 +529,10 @@ until_ pred prompt action = do
     else action result >> until_ pred prompt action
 
 runOne :: String -> IO ()
-runOne expr = nullEnv >>= flip evalAndPrint expr
+runOne expr = primitiveBindings >>= flip evalAndPrint expr
 
 runRepl :: IO ()
-runRepl = nullEnv >>= until_ (== "quit") (readPrompt "Lisp>>> ") . evalAndPrint
+runRepl = primitiveBindings >>= until_ (== "quit") (readPrompt "Lisp>>> ") . evalAndPrint
 
 type Env = IORef [(String, IORef LispVal)]
 nullEnv :: IO Env
@@ -541,6 +577,14 @@ bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
     addBinding (var, value) =
       do ref <- newIORef value
          return (var, ref)
+
+primitiveBindings :: IO Env
+primitiveBindings = nullEnv >>= (flip bindVars $ map makePrimitiveFunc primitives)
+  where makePrimitiveFunc (var, func) = (var, PrimitiveFunc func)
+
+makeFunc varargs env params body = return $ Func (map showVal params) varargs body env
+makeNormalFunc = makeFunc Nothing
+makeVarArgs = makeFunc . Just . showVal
 
 main :: IO ()
 main =
