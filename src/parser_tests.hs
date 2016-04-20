@@ -5,6 +5,7 @@ import Test.HUnit
 import Parser
 
 main = runTestTT . TestList $ map TestCase [assertEqual "" (Char ' ') (readExpr "#\\space"),
+                                            assertEqual "" (Char 'A') (readExpr "#\\A"),
                                             assertEqual "" (String "YOLO\"OLOY") (readExpr "\"YOLO\\\"OLOY\""),
                                             assertEqual "" (String "Dil\nLid") (readExpr "\"Dil\nLid\"" ),
                                             assertEqual "" (Number 83) (readExpr "#o123"),
