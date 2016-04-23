@@ -26,7 +26,6 @@ data LispVal = Atom String
              | PrimitiveFunc ([LispVal] -> ThrowsError LispVal)
              | Func { params :: [String], vararg :: (Maybe String),
                       body :: [LispVal], closure :: Env}
-             -- deriving (Eq)
 
 data LispError = NumArgs Integer [LispVal]
                | TypeMismatch String LispVal
@@ -259,6 +258,9 @@ eval env (List [Atom "set!", Atom var, form]) =
 eval env (List [Atom "define", Atom var, form]) =
      eval env form >>= defineVar env var
 
+
+-- For now it relies on eval 'else to return true. I am not sure if that's the
+-- best way to go about this.
 eval env (List (Atom "cond": args)) = (filterM f args) >>= (eval env) . clause . head
   where
     clause (List [_, c ]) = c
@@ -498,16 +500,6 @@ cons [x, y] = return (DottedList [x] y)
 cons [badArg] = throwError $ TypeMismatch "pair" badArg
 cons badArgList = throwError $ NumArgs 1 badArgList
 
--- cond :: Env -> [LispVal] -> ThrowsError LispVal
--- I have left this here so I can comeback and refactor the cond operator
--- For now it relies on eval 'else to return true. I am not sure if that's the best
--- way to go about this.
--- cond args = case (head . last $ list) of
-                  -- (Atom "else") -> if (extractValue . cond (init args)) == Bool True
-                  --                                then (cond (init args))
-                  --                                    else last . last $ list
-                  -- _ -> last . head $ filteredList
-
 flushStr :: String -> IO ()
 flushStr str = putStr str >> hFlush stdout
 
@@ -592,9 +584,7 @@ main :: IO ()
 main =
   do
     args <- getArgs
-
     case length args of
       0 -> runRepl
       1 -> runOne $ args !! 0
       otherwise -> putStrLn "Program takes only 0 or 1 argument"
-
