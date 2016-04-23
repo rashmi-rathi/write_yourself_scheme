@@ -259,13 +259,14 @@ eval env (List [Atom "set!", Atom var, form]) =
 eval env (List [Atom "define", Atom var, form]) =
      eval env form >>= defineVar env var
 
-{-eval env (List (Atom "cond": args)) = ErrorT (filteredList >>= \x -> runErrorT $ x)-}
-{-     where-}
-{-       unlist (List x) = x-}
-{-       list = unlist <$> args-}
-{-       -- Perhaps, I shouldn't evaluate the whole list here?-}
-{-       evaluatedList = ((eval env) <$>) <$> list -- map (map eval) list-}
-{-       filteredList = (last . head) <$> (filterM (\x -> (runErrorT . head $ x) >>= return . (Bool True ==) . extractValue) evaluatedList)-}
+eval env (List (Atom "cond": args)) = (filterM f args) >>= (eval env) . clause . head
+  where
+    clause (List [_, c ]) = c
+    unbool (Bool b) = b
+    f arg = let
+              List [condition, _] = arg
+            in
+              (eval env condition) >>= return . unbool
 
 {-eval env (List (Atom "case" : key : clauses )) =-}
 {-  do-}
