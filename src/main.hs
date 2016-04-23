@@ -268,21 +268,22 @@ eval env (List (Atom "cond": args)) = (filterM f args) >>= (eval env) . clause .
             in
               (eval env condition) >>= return . unbool
 
-{-eval env (List (Atom "case" : key : clauses )) =-}
-{-  do-}
-{-    evalKey <- eval env key-}
-{-    result <- let-}
-{-                memv el (List xs) =  liftM (any (== Bool True)) . sequence $ (\x -> eqv [el, x]) <$> xs-}
-{-                compareDatum key (List (datum:_)) = memv key datum-}
-{-              in-}
-{-                case (last clauses) of-}
-{-                  val@(List [Atom "else", key]) -> case (liftM null $ clausesWithoutElse) of-}
-{-                                                     Right True -> liftThrows $ Right [val]-}
-{-                                                     _ -> liftThrows $ filterM (compareDatum evalKey) (init clauses)-}
-{-                                                     where-}
-{-                                                        clausesWithoutElse = filterM (compareDatum evalKey) (init clauses)-}
-{-                  _ -> liftThrows $ filterM (compareDatum evalKey) clauses-}
-{-    let List (datum:ckey:[]) = head result in (eval env ckey)-}
+eval env (List (Atom "case" : key : clauses )) =
+  do
+    evalKey <- eval env key
+    result <- let
+                unbool (Bool b) = b
+                memv el (List xs) =  liftM (any ((== True) . unbool)) . sequence $ (\x -> eqv [el, x]) <$> xs
+                compareDatum key (List (datum:_)) = memv key datum
+              in
+                case (last clauses) of
+                  val@(List [Atom "else", key]) -> case (liftM null $ clausesWithoutElse) of
+                                                     Right True -> liftThrows $ Right [val]
+                                                     _ -> liftThrows $ filterM (compareDatum evalKey) (init clauses)
+                                                     where
+                                                        clausesWithoutElse = filterM (compareDatum evalKey) (init clauses)
+                  _ -> liftThrows $ filterM (compareDatum evalKey) clauses
+    let List (datum:ckey:[]) = head result in (eval env ckey)
 
 -- eval env (List (Atom func : args)) = mapM (eval env) args >>= liftThrows . apply func
 eval env (List (function : args)) = do
