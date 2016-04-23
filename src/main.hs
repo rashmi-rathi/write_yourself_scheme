@@ -249,9 +249,9 @@ eval env (List [Atom "quote", val]) = return val
 eval env (List [Atom "if", pred, conseq, alt]) =
   do
     result <- eval env pred
-    x <- case pred of
-              Bool True -> (eval env conseq)
-              Bool False -> (eval env alt)
+    x <- case result of
+          Bool True -> (eval env conseq)
+          Bool False -> (eval env alt)
     return x
 
 eval env (List [Atom "set!", Atom var, form]) =
