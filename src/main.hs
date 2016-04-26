@@ -1,6 +1,5 @@
 {-# LANGUAGE ExistentialQuantification #-}
 import System.Environment
-import Test.HUnit
 import Data.Char (toLower)
 import Data.Ratio
 import Data.Complex
@@ -35,6 +34,7 @@ data LispError = NumArgs Integer [LispVal]
                | BadSpecialForm String LispVal
                | NotFunction String String
                | UnboundVar String String
+               | Assert String
                | Default String
 
 showError :: LispError -> String
@@ -44,6 +44,7 @@ showError (NotFunction message func) = message ++ ": " ++ show func
 showError (NumArgs expected found) = "Expected " ++ show expected ++ " args; found values" ++ unwordsList found
 showError (TypeMismatch expected found) = "Invalid type: expected" ++ expected ++ ", found" ++ show found
 showError (Parser parseErr) = "Parse error at" ++ show parseErr
+showError (Assert parseErr) = "Assertion failed"
 
 instance Show LispError where
   show = showError
@@ -408,6 +409,7 @@ primitives = [("+", numericBinop (+)),
              ("not", unaryOperator notOp),
              ("symbol->string", unaryOperator symbolToString),
              ("string->symbol", unaryOperator stringToSymbol),
+             ("assert", assert),
              ("eq?", eqv),
              ("eqv?", eqv),
              ("equal?", equal),
@@ -463,6 +465,14 @@ eqv [Atom arg1, Atom arg2] = return $ Bool (arg1 == arg2)
 {-eqv [List arg1, List arg2] = return $ Bool ((length arg1 == length arg2) && (and $ zipWith (==) arg1 arg2)) --different from Tang's-}
 eqv [_, _] = return $ Bool False
 eqv badArgsList = throwError $ NumArgs 2 badArgsList
+
+assert :: [LispVal] -> ThrowsError LispVal
+assert [arg1, arg2] =
+    do
+      result <- eqv [arg1, arg2]
+      case result of
+        Bool True -> return $ Bool True
+        Bool False -> throwError $ Assert "false"
 
 data Unpacker = forall a. Eq a => AnyUnpacker (LispVal -> ThrowsError a)
 
