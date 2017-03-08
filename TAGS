@@ -2,25 +2,27 @@
 ./Setup.hs,15
 main main1,2
 
-./src/main.hs,6159
-data LispVal LispVal14,15
-data LispVal = Atom Atom14,15
-             | List List15,16
-             | DottedList DottedList16,17
-             | Number Number17,18
-             | Float Float18,19
-             | Rational Rational19,20
-             | Complex Complex20,21
-             | String String21,22
-             | Vector Vector22,23
-             | Bool Bool23,24
-             | Char Char24,25
-             | PrimitiveFunc PrimitiveFunc25,26
-             | Func Func26,27
-             | Func { params params26,27
-             | Func { params :: [String], vararg vararg26,27
-                      body body27,28
-                      body :: [LispVal], closure closure27,28
+./src/main.hs,6922
+data LispVal LispVal13,14
+data LispVal = Atom Atom13,14
+             | List List14,15
+             | DottedList DottedList15,16
+             | Number Number16,17
+             | Float Float17,18
+             | Rational Rational18,19
+             | Complex Complex19,20
+             | String String20,21
+             | Vector Vector21,22
+             | Bool Bool22,23
+             | Char Char23,24
+             | PrimitiveFunc PrimitiveFunc24,25
+             | IOFunc IOFunc25,26
+             | Port Port26,27
+             | Func Func27,28
+             | Func { params params27,28
+             | Func { params :: [String], vararg vararg27,28
+                      body body28,29
+                      body :: [LispVal], closure closure28,29
 data LispError LispError30,31
 data LispError = NumArgs NumArgs30,31
                | TypeMismatch TypeMismatch31,32
@@ -28,167 +30,191 @@ data LispError = NumArgs NumArgs30,31
                | BadSpecialForm BadSpecialForm33,34
                | NotFunction NotFunction34,35
                | UnboundVar UnboundVar35,36
-               | Default Default36,37
-showError showError38,39
+               | Assert Assert36,37
+               | Default Default37,38
 showError showError39,40
-instance instance46,47
-type ThrowsError ThrowsError53,54
-trapError trapError55,56
-trapError trapError56,57
-extractValue extractValue58,59
-extractValue extractValue59,60
-parseExpr parseExpr61,62
-parseExpr parseExpr62,63
-showVal showVal78,79
-showVal showVal79,80
-unwordsList unwordsList100,101
-unwordsList unwordsList101,102
-readExpr readExpr103,104
-readExpr readExpr104,105
-spaces spaces110,111
-spaces spaces111,112
-symbol symbol113,114
-symbol symbol114,115
-escapeChars escapeChars116,117
-parseString parseString127,128
-parseString parseString128,129
-parseAtom parseAtom135,136
-parseAtom parseAtom136,137
-parseNumber parseNumber146,147
-parseNumber parseNumber147,148
-parseHex parseHex149,150
-parseHex parseHex150,151
-parseOct parseOct152,153
-parseOct parseOct153,154
-parseDec parseDec155,156
-parseDec parseDec156,157
-parseComplex parseComplex160,161
-parseComplex parseComplex161,162
-parseRational parseRational169,170
-parseRational parseRational170,171
-parseChar parseChar177,178
-parseChar parseChar178,179
-parseList parseList188,189
-parseList parseList189,190
-parseDottedList parseDottedList191,192
-parseDottedList parseDottedList192,193
-parseQuoted parseQuoted198,199
-parseQuoted parseQuoted199,200
-parseQuasiQuote parseQuasiQuote205,206
-parseQuasiQuote parseQuasiQuote206,207
-parseVector parseVector221,222
-parseVector parseVector222,223
-eval eval229,230
-eval eval230,231
-isNumber, isList, isSymbol, isString, isBoolean, notOp, symbolToString, stringToSymbol stringToSymbol293,294
-isNumber, isList, isSymbol, isString, isBoolean, notOp, symbolToString,symbolToString293,294
-isNumber, isList, isSymbol, isString, isBoolean, notOp,notOp293,294
-isNumber, isList, isSymbol, isString, isBoolean,isBoolean293,294
-isNumber, isList, isSymbol, isString,isString293,294
-isNumber, isList, isSymbol,isSymbol293,294
-isNumber, isList,isList293,294
-isNumber,isNumber293,294
-isNumber isNumber294,295
-isList isList297,298
-isSymbol isSymbol300,301
-isString isString304,305
-isBoolean isBoolean307,308
-notOp notOp310,311
-symbolToString symbolToString313,314
-stringToSymbol stringToSymbol315,316
-makeString, stringLength, stringRef, substring, stringAppend stringAppend317,318
-makeString, stringLength, stringRef, substring,substring317,318
-makeString, stringLength, stringRef,stringRef317,318
-makeString, stringLength,stringLength317,318
-makeString,makeString317,318
-makeString makeString318,319
-stringLength stringLength320,321
-stringRef stringRef321,322
-substring substring322,323
-stringAppend stringAppend325,326
-joinString joinString326,327
-stringToList, listToString listToString328,329
-stringToList,stringToList328,329
-stringToList stringToList329,330
-listToString listToString330,331
-apply apply334,335
-apply apply335,336
-primitives:primitives348,349
-primitives primitives349,350
-unaryOperator unaryOperator395,396
-unaryOperator unaryOperator396,397
-boolBinop boolBinop398,399
-boolBinop boolBinop399,400
-numericBinop numericBinop405,406
-numericBinop numericBinop406,407
-numBoolBinop numBoolBinop410,411
-strBoolBinop strBoolBinop411,412
-boolBoolBinop boolBoolBinop412,413
-unpackNum unpackNum414,415
-unpackNum unpackNum415,416
-unpackStr unpackStr419,420
-unpackStr unpackStr420,421
-unpackChar unpackChar425,426
-unpackChar unpackChar426,427
-unpackBool unpackBool430,431
-unpackBool unpackBool431,432
-eqv eqv435,436
-eqv eqv436,437
-data Unpacker Unpacker444,445
-data Unpacker = forall forall444,445
-unpackerEqual unpackerEqual446,447
-unpackerEqual unpackerEqual447,448
-listEquals listEquals454,455
-listEquals listEquals455,456
-equal equal464,465
-equal equal465,466
-car car477,478
-car car478,479
-cdr cdr483,484
-cdr cdr484,485
-cons cons490,491
-cons cons491,492
-flushStr flushStr508,509
-flushStr flushStr509,510
-readPrompt readPrompt511,512
-readPrompt readPrompt512,513
-evalString evalString514,515
-evalString evalString515,516
-evaluator evaluator517,518
-evaluator evaluator518,519
-evalAndPrint evalAndPrint520,521
-evalAndPrint evalAndPrint521,522
-until_ until_523,524
-until_ until_524,525
-runOne runOne530,531
-runOne runOne531,532
-runRepl runRepl533,534
-runRepl runRepl534,535
-type Env Env536,537
-nullEnv nullEnv537,538
-nullEnv nullEnv538,539
-type IOThrowsError IOThrowsError539,540
-liftThrows liftThrows540,541
-liftThrows liftThrows541,542
-runIOThrows runIOThrows543,544
-runIOThrows runIOThrows544,545
-isBound isBound545,546
-isBound isBound546,547
-getVar getVar547,548
-getVar getVar548,549
-setVar setVar553,554
-setVar setVar554,555
-defineVar defineVar560,561
-defineVar defineVar561,562
-bindVars bindVars572,573
-bindVars bindVars573,574
-primitiveBindings primitiveBindings580,581
-primitiveBindings primitiveBindings581,582
-makeFunc makeFunc584,585
-makeNormalFunc makeNormalFunc585,586
-makeVarArgs makeVarArgs586,587
-main main588,589
-main main589,590
+showError showError40,41
+instance instance48,49
+type ThrowsError ThrowsError55,56
+trapError trapError57,58
+trapError trapError58,59
+extractValue extractValue60,61
+extractValue extractValue61,62
+parseExpr parseExpr63,64
+parseExpr parseExpr64,65
+showVal showVal80,81
+showVal showVal81,82
+unwordsList unwordsList104,105
+unwordsList unwordsList105,106
+readOrThrow readOrThrow107,108
+readOrThrow readOrThrow108,109
+readExpr readExpr112,113
+readExpr readExpr113,114
+readExprList readExprList114,115
+spaces spaces116,117
+spaces spaces117,118
+symbol symbol119,120
+symbol symbol120,121
+escapeChars escapeChars122,123
+parseString parseString133,134
+parseString parseString134,135
+parseAtom parseAtom141,142
+parseAtom parseAtom142,143
+parseNumber parseNumber152,153
+parseNumber parseNumber153,154
+parseHex parseHex155,156
+parseHex parseHex156,157
+parseOct parseOct158,159
+parseOct parseOct159,160
+parseDec parseDec161,162
+parseDec parseDec162,163
+parseComplex parseComplex166,167
+parseComplex parseComplex167,168
+parseRational parseRational175,176
+parseRational parseRational176,177
+parseChar parseChar183,184
+parseChar parseChar184,185
+parseList parseList194,195
+parseList parseList195,196
+parseDottedList parseDottedList197,198
+parseDottedList parseDottedList198,199
+parseQuoted parseQuoted204,205
+parseQuoted parseQuoted205,206
+parseQuasiQuote parseQuasiQuote211,212
+parseQuasiQuote parseQuasiQuote212,213
+parseVector parseVector227,228
+parseVector parseVector228,229
+eval eval235,236
+eval eval236,237
+isNumber, isList, isSymbol, isString, isBoolean, notOp, symbolToString, stringToSymbol stringToSymbol304,305
+isNumber, isList, isSymbol, isString, isBoolean, notOp, symbolToString,symbolToString304,305
+isNumber, isList, isSymbol, isString, isBoolean, notOp,notOp304,305
+isNumber, isList, isSymbol, isString, isBoolean,isBoolean304,305
+isNumber, isList, isSymbol, isString,isString304,305
+isNumber, isList, isSymbol,isSymbol304,305
+isNumber, isList,isList304,305
+isNumber,isNumber304,305
+isNumber isNumber305,306
+isList isList308,309
+isSymbol isSymbol311,312
+isString isString315,316
+isBoolean isBoolean318,319
+notOp notOp321,322
+symbolToString symbolToString324,325
+stringToSymbol stringToSymbol326,327
+makeString, stringLength, stringRef, substring, stringAppend stringAppend328,329
+makeString, stringLength, stringRef, substring,substring328,329
+makeString, stringLength, stringRef,stringRef328,329
+makeString, stringLength,stringLength328,329
+makeString,makeString328,329
+makeString makeString329,330
+stringLength stringLength331,332
+stringRef stringRef332,333
+substring substring333,334
+stringAppend stringAppend336,337
+joinString joinString337,338
+stringToList, listToString listToString339,340
+stringToList,stringToList339,340
+stringToList stringToList340,341
+listToString listToString341,342
+apply apply345,346
+apply apply346,347
+ioPrimitives ioPrimitives360,361
+ioPrimitives ioPrimitives361,362
+primitives:primitives371,372
+primitives primitives372,373
+unaryOperator unaryOperator419,420
+unaryOperator unaryOperator420,421
+boolBinop boolBinop422,423
+boolBinop boolBinop423,424
+numericBinop numericBinop429,430
+numericBinop numericBinop430,431
+numBoolBinop numBoolBinop434,435
+strBoolBinop strBoolBinop435,436
+boolBoolBinop boolBoolBinop436,437
+unpackNum unpackNum438,439
+unpackNum unpackNum439,440
+unpackStr unpackStr443,444
+unpackStr unpackStr444,445
+unpackChar unpackChar449,450
+unpackChar unpackChar450,451
+unpackBool unpackBool454,455
+unpackBool unpackBool455,456
+eqv eqv459,460
+eqv eqv460,461
+assert assert474,475
+assert assert475,476
+data Unpacker Unpacker482,483
+data Unpacker = forall forall482,483
+unpackerEqual unpackerEqual484,485
+unpackerEqual unpackerEqual485,486
+listEquals listEquals492,493
+listEquals listEquals493,494
+equal equal502,503
+equal equal503,504
+car car515,516
+car car516,517
+cdr cdr521,522
+cdr cdr522,523
+cons cons528,529
+cons cons529,530
+flushStr flushStr536,537
+flushStr flushStr537,538
+readPrompt readPrompt539,540
+readPrompt readPrompt540,541
+evalString evalString542,543
+evalString evalString543,544
+evaluator evaluator545,546
+evaluator evaluator546,547
+evalAndPrint evalAndPrint548,549
+evalAndPrint evalAndPrint549,550
+until_ until_551,552
+until_ until_552,553
+runOne runOne558,559
+runOne runOne559,560
+runRepl runRepl564,565
+runRepl runRepl565,566
+type Env Env567,568
+nullEnv nullEnv568,569
+nullEnv nullEnv569,570
+type IOThrowsError IOThrowsError570,571
+liftThrows liftThrows571,572
+liftThrows liftThrows572,573
+runIOThrows runIOThrows574,575
+runIOThrows runIOThrows575,576
+isBound isBound576,577
+isBound isBound577,578
+getVar getVar578,579
+getVar getVar579,580
+setVar setVar584,585
+setVar setVar585,586
+defineVar defineVar591,592
+defineVar defineVar592,593
+bindVars bindVars603,604
+bindVars bindVars604,605
+applyProc applyProc611,612
+applyProc applyProc612,613
+makePort makePort615,616
+makePort makePort616,617
+closePort closePort618,619
+closePort closePort619,620
+readProc readProc622,623
+readProc readProc623,624
+writeProc writeProc626,627
+writeProc writeProc627,628
+readContents readContents630,631
+readContents readContents631,632
+load load633,634
+load load634,635
+readAll readAll636,637
+readAll readAll637,638
+primitiveBindings primitiveBindings639,640
+primitiveBindings primitiveBindings640,641
+makeFunc makeFunc645,646
+makeNormalFunc makeNormalFunc646,647
+makeVarArgs makeVarArgs647,648
+main main649,650
+main main650,651
 
 ./src/Parser.hs,1712
 module Parser Parser0,1

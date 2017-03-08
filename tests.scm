@@ -1,8 +1,8 @@
-(load "stdlib.scm")
+;(load "stdlib.scm")
 (assert 2 (+ 1 1))
 (assert 3 (- (+ 4 6 3) 3 5 2))
 
-(assert #t (number? 123))
+(assert #t (number? 124))
 (assert #t (string? "hello"))
 (assert #t (symbol? 'hello))
 (assert #t (list? '(1 2 3)))
